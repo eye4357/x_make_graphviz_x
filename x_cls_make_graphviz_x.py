@@ -26,7 +26,9 @@ class x_cls_make_graphviz_x:
         self._edges: list[str] = []
         self._directed: bool = True
 
-    def add_node(self, node_id: str, label: str | None = None, **attrs: Any) -> None:
+    def add_node(
+        self, node_id: str, label: str | None = None, **attrs: Any
+    ) -> None:
         """Add a node. Attributes are rendered as DOT attributes.
 
         Example: add_node('A', 'Start')
@@ -35,35 +37,37 @@ class x_cls_make_graphviz_x:
         attr_parts = "".join([f' {k}="{v}"' for k, v in attrs.items()])
         self._nodes.append(f'"{node_id}" [{label_part}{attr_parts}]')
 
-    def add_edge(self, src: str, dst: str, label: str | None = None, **attrs: Any) -> None:
+    def add_edge(
+        self, src: str, dst: str, label: str | None = None, **attrs: Any
+    ) -> None:
         """Add an edge between src and dst.
 
         If `self._directed` is True a directed edge is used.
         """
-        arrow = '->' if self._directed else '--'
-        label_part = f' [label="{label}"' if label is not None or attrs else ''
+        arrow = "->" if self._directed else "--"
+        label_part = f' [label="{label}"' if label is not None or attrs else ""
         if label is not None and attrs:
             label_str = f'label="{label}"'
         elif label is not None:
             label_str = f'label="{label}"'
         else:
-            label_str = ''
+            label_str = ""
 
         attr_str = ", ".join([f'{k}="{v}"' for k, v in attrs.items()])
         inner = ", ".join(filter(None, [label_str, attr_str]))
         if inner:
-            label_part = f' [{inner}]'
+            label_part = f" [{inner}]"
         else:
-            label_part = ''
+            label_part = ""
 
         self._edges.append(f'"{src}" {arrow} "{dst}"{label_part}')
 
-    def _dot_source(self, name: str = 'G') -> str:
-        kind = 'digraph' if self._directed else 'graph'
+    def _dot_source(self, name: str = "G") -> str:
+        kind = "digraph" if self._directed else "graph"
         body = "\n".join(self._nodes + self._edges)
         return f"{kind} {name} {{\n{body}\n}}\n"
 
-    def render(self, output_file: str = 'graph', format: str = 'png') -> str:
+    def render(self, output_file: str = "graph", format: str = "png") -> str:
         """Render the graph.
 
         Attempts to use the `graphviz` package. If unavailable writes DOT to
@@ -72,28 +76,30 @@ class x_cls_make_graphviz_x:
         dot = self._dot_source()
 
         try:
-            _graphviz: Any = importlib.import_module('graphviz')
+            _graphviz: Any = importlib.import_module("graphviz")
+            g = _graphviz.Source(dot)
+            out_path = g.render(
+                filename=output_file, format=format, cleanup=True
+            )
+            # graphviz may return a path-like or Any; ensure we return a str for typing
+            return str(out_path)
         except Exception:
             dot_path = f"{output_file}.dot"
-            with open(dot_path, 'w', encoding='utf-8') as f:
+            with open(dot_path, "w", encoding="utf-8") as f:
                 f.write(dot)
             return dot
-
-        g = _graphviz.Source(dot)
-        out_path = g.render(filename=output_file, format=format, cleanup=True)
-        return out_path
 
 
 def main() -> str:
     g = x_cls_make_graphviz_x()
-    g.add_node('A', 'Start')
-    g.add_node('B', 'End')
-    g.add_edge('A', 'B', 'to')
+    g.add_node("A", "Start")
+    g.add_node("B", "End")
+    g.add_edge("A", "B", "to")
     # Attempt render which will return a path if graphviz is available
     # or the DOT source (string) when graphviz is missing.
-    out = g.render(output_file='example', format='dot')
+    out = g.render(output_file="example", format="dot")
     return out
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(main())
