@@ -21,7 +21,14 @@ class x_cls_make_graphviz_x:
     they fall back to writing the DOT source to disk.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, ctx: object | None = None) -> None:
+        """Optional ctx is accepted for future orchestration integration.
+
+        Backwards-compatible: callers that don't pass ctx keep the old behavior.
+        If a ctx with a truthy `verbose` attribute is provided the class will
+        emit minimal runtime information to stdout to aid debugging.
+        """
+        self._ctx = ctx
         self._nodes: list[str] = []
         self._edges: list[str] = []
         self._directed: bool = True
@@ -75,6 +82,12 @@ class x_cls_make_graphviz_x:
         """
         dot = self._dot_source()
 
+        if getattr(self._ctx, "verbose", False):
+            # lightweight informational message when running under an orchestrator context
+            print(
+                f"[graphviz] rendering output_file={output_file!r} format={format!r}"
+            )
+
         try:
             _graphviz: Any = importlib.import_module("graphviz")
             g = _graphviz.Source(dot)
@@ -87,6 +100,8 @@ class x_cls_make_graphviz_x:
             dot_path = f"{output_file}.dot"
             with open(dot_path, "w", encoding="utf-8") as f:
                 f.write(dot)
+            if getattr(self._ctx, "verbose", False):
+                print(f"[graphviz] wrote DOT fallback to {dot_path}")
             return dot
 
 
