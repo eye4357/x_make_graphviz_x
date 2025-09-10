@@ -11,6 +11,25 @@ from __future__ import annotations
 
 import importlib
 from typing import Any
+import logging
+import sys as _sys
+
+_LOGGER = logging.getLogger("x_make")
+
+
+def _info(*args: object) -> None:
+    msg = " ".join(str(a) for a in args)
+    try:
+        _LOGGER.info("%s", msg)
+    except Exception:
+        pass
+    try:
+        print(msg)
+    except Exception:
+        try:
+            _sys.stdout.write(msg + "\n")
+        except Exception:
+            pass
 
 
 class x_cls_make_graphviz_x:
@@ -84,8 +103,6 @@ class x_cls_make_graphviz_x:
 
         if getattr(self._ctx, "verbose", False):
             # lightweight informational message when running under an orchestrator context
-            from x_make_common_x.helpers import info as _info
-
             _info(
                 f"[graphviz] rendering output_file={output_file!r} format={format!r}"
             )
@@ -103,8 +120,6 @@ class x_cls_make_graphviz_x:
             with open(dot_path, "w", encoding="utf-8") as f:
                 f.write(dot)
             if getattr(self._ctx, "verbose", False):
-                from x_make_common_x.helpers import info as _info
-
                 _info(f"[graphviz] wrote DOT fallback to {dot_path}")
             return dot
 
@@ -121,6 +136,4 @@ def main() -> str:
 
 
 if __name__ == "__main__":
-    from x_make_common_x.helpers import info as _info
-
     _info(main())
