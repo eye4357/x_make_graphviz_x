@@ -8,10 +8,9 @@ record/HTML labels, ports, and rich attributes.
 from __future__ import annotations
 
 import importlib
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Sequence, cast
 import logging
 import sys as _sys
-import os
 
 _LOGGER = logging.getLogger("x_make")
 
@@ -128,7 +127,9 @@ class x_cls_make_graphviz_x:
 
     # Node/edge builders
 
-    def graph_label(self, label: str, loc: str | None = None, fontsize: int | None = None) -> "x_cls_make_graphviz_x":
+    def graph_label(
+        self, label: str, loc: str | None = None, fontsize: int | None = None
+    ) -> "x_cls_make_graphviz_x":
         """Set a graph label with optional location ('t','b','l','r') and font size."""
         self._graph_attrs["label"] = label
         if loc:
@@ -207,14 +208,23 @@ class x_cls_make_graphviz_x:
     # Labels helpers
 
     @staticmethod
-    def record_label(fields: list[str] | list[list[str]]) -> str:
+    def record_label(
+        fields: Sequence[str] | Sequence[Sequence[str]]
+    ) -> str:
         """Build a record label: either flat ['a','b'] or rows [['a','b'],['c']]."""
-        def fmt_row(row: list[str]) -> str:
-            return " | ".join(_esc(c) for c in row)
 
-        if fields and isinstance(fields[0], list):
-            return "{" + "} | {".join(fmt_row(r) for r in fields) + "}"
-        return " | ".join(_esc(f) for f in fields)  # type: ignore[arg-type]
+        def fmt_row(row: Sequence[str]) -> str:
+            return " | ".join(_esc(c) for c in row)
+        # Decide shape at runtime, then cast for type-checkers
+        try:
+            is_rows = bool(fields) and isinstance(fields[0], (list, tuple))  # type: ignore[index]
+        except Exception:
+            is_rows = False
+        if is_rows:
+            rows = cast(Sequence[Sequence[str]], fields)
+            return "{" + "} | {".join(fmt_row(r) for r in rows) + "}"
+        cells = cast(Sequence[str], fields)
+        return " | ".join(_esc(f) for f in cells)
 
     @staticmethod
     def html_label(html: str) -> str:
@@ -290,7 +300,9 @@ class x_cls_make_graphviz_x:
                 except Exception:
                     # fallback to layout attribute if engine not supported by graphviz.Source
                     pass
-            out_path = g.render(filename=output_file, format=format, cleanup=True)
+            out_path = g.render(
+                filename=output_file, format=format, cleanup=True
+            )
             return str(out_path)
         except Exception:
             dot_path = f"{output_file}.dot"
@@ -338,7 +350,11 @@ class x_cls_make_graphviz_x:
 
 
 def main() -> str:
-    g = x_cls_make_graphviz_x(directed=True).rankdir("LR").node_defaults(shape="box")
+    g = (
+        x_cls_make_graphviz_x(directed=True)
+        .rankdir("LR")
+        .node_defaults(shape="box")
+    )
     g.add_node("A", "Start")
     g.add_node("B", "End")
     g.add_edge("A", "B", "to", color="blue")
