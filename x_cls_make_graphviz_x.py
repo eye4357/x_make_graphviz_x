@@ -128,9 +128,29 @@ class x_cls_make_graphviz_x:
 
     # Node/edge builders
 
+    def graph_label(self, label: str, loc: str | None = None, fontsize: int | None = None) -> "x_cls_make_graphviz_x":
+        """Set a graph label with optional location ('t','b','l','r') and font size."""
+        self._graph_attrs["label"] = label
+        if loc:
+            self._graph_attrs["labelloc"] = loc
+        if fontsize:
+            self._graph_attrs["fontsize"] = fontsize
+        return self
+
+    def bgcolor(self, color: str) -> "x_cls_make_graphviz_x":
+        """Set the graph background color."""
+        self._graph_attrs["bgcolor"] = color
+        return self
+
     def add_node(
         self, node_id: str, label: str | None = None, **attrs: Any
     ) -> "x_cls_make_graphviz_x":
+        # Map convenience keys to DOT/SVG hyperlink attributes
+        if "url" in attrs and "URL" not in attrs:
+            attrs["URL"] = attrs.pop("url")
+        if "href" in attrs and "URL" not in attrs:
+            attrs["URL"] = attrs.pop("href")
+        # ...existing code...
         if label is not None and "label" not in attrs:
             attrs["label"] = label
         self._nodes.append(f'"{_esc(node_id)}"{_attrs(attrs)}')
@@ -145,6 +165,12 @@ class x_cls_make_graphviz_x:
         to_port: str | None = None,
         **attrs: Any,
     ) -> "x_cls_make_graphviz_x":
+        # Map convenience keys to DOT/SVG hyperlink attributes
+        if "url" in attrs and "URL" not in attrs:
+            attrs["URL"] = attrs.pop("url")
+        if "href" in attrs and "URL" not in attrs:
+            attrs["URL"] = attrs.pop("href")
+        # ...existing code...
         arrow = "->" if self._directed else "--"
         lhs = f'"{_esc(src)}"{":" + from_port if from_port else ""}'
         rhs = f'"{_esc(dst)}"{":" + to_port if to_port else ""}'
@@ -152,6 +178,31 @@ class x_cls_make_graphviz_x:
             attrs["label"] = label
         self._edges.append(f"{lhs} {arrow} {rhs}{_attrs(attrs)}")
         return self
+
+    def add_raw(self, line: str) -> "x_cls_make_graphviz_x":
+        """Append a raw DOT line at top level (advanced)."""
+        self._nodes.append(line)
+        return self
+
+    def image_node(
+        self,
+        node_id: str,
+        image_path: str,
+        label: str | None = None,
+        width: str | None = None,
+        height: str | None = None,
+        **attrs: Any,
+    ) -> "x_cls_make_graphviz_x":
+        """Create an image-backed node (shape='none', image=...)."""
+        attrs.setdefault("shape", "none")
+        attrs["image"] = image_path
+        if width:
+            attrs["width"] = width
+            attrs.setdefault("fixedsize", "true")
+        if height:
+            attrs["height"] = height
+            attrs.setdefault("fixedsize", "true")
+        return self.add_node(node_id, label=label or "", **attrs)
 
     # Labels helpers
 
