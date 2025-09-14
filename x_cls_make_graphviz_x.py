@@ -8,9 +8,10 @@ record/HTML labels, ports, and rich attributes.
 from __future__ import annotations
 
 import importlib
-from typing import Any, Iterable, Sequence, cast
+from typing import Any, Iterable, Optional, Sequence, cast
 import logging
 import sys as _sys
+import os
 
 _LOGGER = logging.getLogger("x_make")
 
@@ -208,20 +209,17 @@ class x_cls_make_graphviz_x:
     # Labels helpers
 
     @staticmethod
-    def record_label(fields: Sequence[str] | Sequence[Sequence[str]]) -> str:
+    def record_label(
+        fields: Sequence[str] | Sequence[Sequence[str]]
+    ) -> str:
         """Build a record label: either flat ['a','b'] or rows [['a','b'],['c']]."""
 
         def fmt_row(row: Sequence[str]) -> str:
             return " | ".join(_esc(c) for c in row)
-
-        # Decide shape at runtime, then cast for type-checkers
-        try:
-            is_rows = bool(fields) and isinstance(fields[0], (list, tuple))  # type: ignore[index]
-        except Exception:
-            is_rows = False
-        if is_rows:
-            rows = cast(Sequence[Sequence[str]], fields)
-            return "{" + "} | {".join(fmt_row(r) for r in rows) + "}"
+        # If rows of fields
+        if fields and isinstance(fields[0], (list, tuple)):
+            return "{" + "} | {".join(fmt_row(row) for row in fields) + "}"
+        # Else flat list of fields
         cells = cast(Sequence[str], fields)
         return " | ".join(_esc(f) for f in cells)
 
@@ -366,5 +364,7 @@ def main() -> str:
     return svg or "example.dot"
 
 
+if __name__ == "__main__":
+    _info(main())
 if __name__ == "__main__":
     _info(main())
