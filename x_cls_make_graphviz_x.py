@@ -8,9 +8,10 @@ record/HTML labels, ports, and rich attributes.
 from __future__ import annotations
 
 import importlib
-from typing import Any, Iterable, Sequence, cast
 import logging
 import sys as _sys
+from collections.abc import Iterable, Sequence
+from typing import Any, cast
 
 _LOGGER = logging.getLogger("x_make")
 
@@ -90,36 +91,36 @@ class x_cls_make_graphviz_x:
 
     # Graph-wide controls
 
-    def directed(self, value: bool = True) -> "x_cls_make_graphviz_x":
+    def directed(self, value: bool = True) -> x_cls_make_graphviz_x:
         self._directed = value
         return self
 
-    def engine(self, name: str) -> "x_cls_make_graphviz_x":
+    def engine(self, name: str) -> x_cls_make_graphviz_x:
         self._engine = name
         return self
 
-    def graph_attr(self, **attrs: Any) -> "x_cls_make_graphviz_x":
+    def graph_attr(self, **attrs: Any) -> x_cls_make_graphviz_x:
         self._graph_attrs.update(attrs)
         return self
 
-    def node_defaults(self, **attrs: Any) -> "x_cls_make_graphviz_x":
+    def node_defaults(self, **attrs: Any) -> x_cls_make_graphviz_x:
         self._node_defaults.update(attrs)
         return self
 
-    def edge_defaults(self, **attrs: Any) -> "x_cls_make_graphviz_x":
+    def edge_defaults(self, **attrs: Any) -> x_cls_make_graphviz_x:
         self._edge_defaults.update(attrs)
         return self
 
-    def rankdir(self, dir_: str) -> "x_cls_make_graphviz_x":
+    def rankdir(self, dir_: str) -> x_cls_make_graphviz_x:
         return self.graph_attr(rankdir=dir_)
 
-    def splines(self, mode: str = "spline") -> "x_cls_make_graphviz_x":
+    def splines(self, mode: str = "spline") -> x_cls_make_graphviz_x:
         return self.graph_attr(splines=mode)
 
-    def overlap(self, mode: str = "false") -> "x_cls_make_graphviz_x":
+    def overlap(self, mode: str = "false") -> x_cls_make_graphviz_x:
         return self.graph_attr(overlap=mode)
 
-    def rank(self, same: Iterable[str]) -> "x_cls_make_graphviz_x":
+    def rank(self, same: Iterable[str]) -> x_cls_make_graphviz_x:
         """Create same-rank constraint at top-level."""
         nodes = " ".join(f'"{_esc(n)}"' for n in same)
         self._nodes.append(f"{{ rank = same; {nodes} }}")
@@ -129,7 +130,7 @@ class x_cls_make_graphviz_x:
 
     def graph_label(
         self, label: str, loc: str | None = None, fontsize: int | None = None
-    ) -> "x_cls_make_graphviz_x":
+    ) -> x_cls_make_graphviz_x:
         """Set a graph label with optional location ('t','b','l','r') and font size."""
         self._graph_attrs["label"] = label
         if loc:
@@ -138,14 +139,14 @@ class x_cls_make_graphviz_x:
             self._graph_attrs["fontsize"] = fontsize
         return self
 
-    def bgcolor(self, color: str) -> "x_cls_make_graphviz_x":
+    def bgcolor(self, color: str) -> x_cls_make_graphviz_x:
         """Set the graph background color."""
         self._graph_attrs["bgcolor"] = color
         return self
 
     def add_node(
         self, node_id: str, label: str | None = None, **attrs: Any
-    ) -> "x_cls_make_graphviz_x":
+    ) -> x_cls_make_graphviz_x:
         # Map convenience keys to DOT/SVG hyperlink attributes
         if "url" in attrs and "URL" not in attrs:
             attrs["URL"] = attrs.pop("url")
@@ -165,7 +166,7 @@ class x_cls_make_graphviz_x:
         from_port: str | None = None,
         to_port: str | None = None,
         **attrs: Any,
-    ) -> "x_cls_make_graphviz_x":
+    ) -> x_cls_make_graphviz_x:
         # Map convenience keys to DOT/SVG hyperlink attributes
         if "url" in attrs and "URL" not in attrs:
             attrs["URL"] = attrs.pop("url")
@@ -180,7 +181,7 @@ class x_cls_make_graphviz_x:
         self._edges.append(f"{lhs} {arrow} {rhs}{_attrs(attrs)}")
         return self
 
-    def add_raw(self, line: str) -> "x_cls_make_graphviz_x":
+    def add_raw(self, line: str) -> x_cls_make_graphviz_x:
         """Append a raw DOT line at top level (advanced)."""
         self._nodes.append(line)
         return self
@@ -193,7 +194,7 @@ class x_cls_make_graphviz_x:
         width: str | None = None,
         height: str | None = None,
         **attrs: Any,
-    ) -> "x_cls_make_graphviz_x":
+    ) -> x_cls_make_graphviz_x:
         """Create an image-backed node (shape='none', image=...)."""
         attrs.setdefault("shape", "none")
         attrs["image"] = image_path
@@ -218,7 +219,7 @@ class x_cls_make_graphviz_x:
         if fields and isinstance(fields[0], (list, tuple)):
             return "{" + "} | {".join(fmt_row(row) for row in fields) + "}"
         # Else flat list of fields
-        cells = cast(Sequence[str], fields)
+        cells = cast("Sequence[str]", fields)
         return " | ".join(_esc(f) for f in cells)
 
     @staticmethod
@@ -240,7 +241,7 @@ class x_cls_make_graphviz_x:
         node_id: str,
         label: str | None = None,
         **attrs: Any,
-    ) -> "x_cls_make_graphviz_x":
+    ) -> x_cls_make_graphviz_x:
         if label is not None and "label" not in attrs:
             attrs["label"] = label
         sg.nodes.append(f'"{_esc(node_id)}"{_attrs(attrs)}')
@@ -253,7 +254,7 @@ class x_cls_make_graphviz_x:
         dst: str,
         label: str | None = None,
         **attrs: Any,
-    ) -> "x_cls_make_graphviz_x":
+    ) -> x_cls_make_graphviz_x:
         arrow = "->" if self._directed else "--"
         if label is not None and "label" not in attrs:
             attrs["label"] = label
