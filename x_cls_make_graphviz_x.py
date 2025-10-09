@@ -10,8 +10,23 @@ from __future__ import annotations
 import importlib
 import logging
 import sys as _sys
-from collections.abc import Iterable, Sequence
-from typing import Any, cast
+from collections.abc import Iterable, Mapping, Sequence
+from types import ModuleType
+from typing import Protocol, cast
+
+AttrValue = str | int | float | bool | None
+AttrMap = dict[str, AttrValue]
+
+
+class _GraphvizSource(Protocol):
+    engine: str | None
+
+    def render(self, filename: str, format: str, cleanup: bool) -> str: ...
+
+
+class _GraphvizSourceFactory(Protocol):
+    def __call__(self, source: str) -> _GraphvizSource: ...
+
 
 _LOGGER = logging.getLogger("x_make")
 
@@ -35,35 +50,32 @@ def _esc(s: str) -> str:
     return str(s).replace('"', r"\"")
 
 
-def _attrs(d: dict[str, Any] | None) -> str:
-    if not d:
+def _attrs(data: Mapping[str, AttrValue] | None) -> str:
+    if not data:
         return ""
-    pairs = []
-    for k, v in d.items():
-        if v is None:
+    pairs: list[str] = []
+    for key, value in data.items():
+        if value is None:
             continue
-        if isinstance(v, bool):
-            v = "true" if v else "false"
-        pairs.append(f'{k}="{_esc(v)}"')
+        text = "true" if value is True else "false" if value is False else str(value)
+        pairs.append(f'{key}="{_esc(text)}"')
     return " [" + ", ".join(pairs) + "]"
 
 
 class _Subgraph:
     def __init__(
-        self, name: str, cluster: bool, attrs: dict[str, Any] | None = None
+        self, name: str, cluster: bool, attrs: Mapping[str, AttrValue] | None = None
     ) -> None:
         self.name = (
-            "cluster_" + name
-            if cluster and not name.startswith("cluster_")
-            else name
+            "cluster_" + name if cluster and not name.startswith("cluster_") else name
         )
-        self.attrs = attrs or {}
+        self.attrs: AttrMap = dict(attrs) if attrs else {}
         self.nodes: list[str] = []
         self.edges: list[str] = []
         self.raw: list[str] = []
 
     def dot(self) -> str:
-        body = []
+        body: list[str] = []
         if self.attrs:
             body.append("graph" + _attrs(self.attrs))
         body.extend(self.nodes)
@@ -76,14 +88,12 @@ class _Subgraph:
 class x_cls_make_graphviz_x:
     """Rich Graphviz builder."""
 
-    def __init__(
-        self, ctx: object | None = None, directed: bool = True
-    ) -> None:
+    def __init__(self, ctx: object | None = None, directed: bool = True) -> None:
         self._ctx = ctx
         self._directed = directed
-        self._graph_attrs: dict[str, Any] = {}
-        self._node_defaults: dict[str, Any] = {}
-        self._edge_defaults: dict[str, Any] = {}
+        self._graph_attrs: AttrMap = {}
+        self._node_defaults: AttrMap = {}
+        self._edge_defaults: AttrMap = {}
         self._nodes: list[str] = []
         self._edges: list[str] = []
         self._subgraphs: list[_Subgraph] = []
@@ -99,15 +109,15 @@ class x_cls_make_graphviz_x:
         self._engine = name
         return self
 
-    def graph_attr(self, **attrs: Any) -> x_cls_make_graphviz_x:
+    def graph_attr(self, **attrs: AttrValue) -> x_cls_make_graphviz_x:
         self._graph_attrs.update(attrs)
         return self
 
-    def node_defaults(self, **attrs: Any) -> x_cls_make_graphviz_x:
+    def node_defaults(self, **attrs: AttrValue) -> x_cls_make_graphviz_x:
         self._node_defaults.update(attrs)
         return self
 
-    def edge_defaults(self, **attrs: Any) -> x_cls_make_graphviz_x:
+    def edge_defaults(self, **attrs: AttrValue) -> x_cls_make_graphviz_x:
         self._edge_defaults.update(attrs)
         return self
 
@@ -145,7 +155,7 @@ class x_cls_make_graphviz_x:
         return self
 
     def add_node(
-        self, node_id: str, label: str | None = None, **attrs: Any
+        self, node_id: str, label: str | None = None, **attrs: AttrValue
     ) -> x_cls_make_graphviz_x:
         # Map convenience keys to DOT/SVG hyperlink attributes
         if "url" in attrs and "URL" not in attrs:
@@ -165,7 +175,7 @@ class x_cls_make_graphviz_x:
         label: str | None = None,
         from_port: str | None = None,
         to_port: str | None = None,
-        **attrs: Any,
+        **attrs: AttrValue,
     ) -> x_cls_make_graphviz_x:
         # Map convenience keys to DOT/SVG hyperlink attributes
         if "url" in attrs and "URL" not in attrs:
@@ -193,7 +203,7 @@ class x_cls_make_graphviz_x:
         label: str | None = None,
         width: str | None = None,
         height: str | None = None,
-        **attrs: Any,
+        **attrs: AttrValue,
     ) -> x_cls_make_graphviz_x:
         """Create an image-backed node (shape='none', image=...)."""
         attrs.setdefault("shape", "none")
@@ -229,7 +239,7 @@ class x_cls_make_graphviz_x:
     # Subgraphs / clusters
 
     def subgraph(
-        self, name: str, cluster: bool = False, **attrs: Any
+        self, name: str, cluster: bool = False, **attrs: AttrValue
     ) -> _Subgraph:
         sg = _Subgraph(name=name, cluster=cluster, attrs=attrs or None)
         self._subgraphs.append(sg)
@@ -240,7 +250,7 @@ class x_cls_make_graphviz_x:
         sg: _Subgraph,
         node_id: str,
         label: str | None = None,
-        **attrs: Any,
+        **attrs: AttrValue,
     ) -> x_cls_make_graphviz_x:
         if label is not None and "label" not in attrs:
             attrs["label"] = label
@@ -253,7 +263,7 @@ class x_cls_make_graphviz_x:
         src: str,
         dst: str,
         label: str | None = None,
-        **attrs: Any,
+        **attrs: AttrValue,
     ) -> x_cls_make_graphviz_x:
         arrow = "->" if self._directed else "--"
         if label is not None and "label" not in attrs:
@@ -288,15 +298,18 @@ class x_cls_make_graphviz_x:
                 f"[graphviz] rendering output_file={output_file!r} format={format!r} engine={self._engine or 'dot'}"
             )
         try:
-            _graphviz: Any = importlib.import_module("graphviz")
-            g = _graphviz.Source(dot)
+            graphviz_mod: ModuleType = importlib.import_module("graphviz")
+            source_factory = cast(
+                "_GraphvizSourceFactory",
+                graphviz_mod.Source,
+            )
+            graphviz_source = source_factory(dot)
             if self._engine:
                 try:
-                    g.engine = self._engine
+                    graphviz_source.engine = self._engine
                 except Exception:
-                    # fallback to layout attribute if engine not supported by graphviz.Source
                     pass
-            out_path = g.render(
+            out_path = graphviz_source.render(
                 filename=output_file, format=format, cleanup=True
             )
             return str(out_path)
@@ -319,7 +332,7 @@ class x_cls_make_graphviz_x:
     def to_svg(self, output_basename: str = "graph") -> str | None:
         """Render SVG via graphviz if available. Returns SVG path or None on fallback."""
         try:
-            _graphviz: Any = importlib.import_module("graphviz")
+            graphviz_mod: ModuleType = importlib.import_module("graphviz")
         except Exception:
             # ensure DOT exists for external conversion, even if graphviz python package is missing
             self.save_dot(f"{output_basename}.dot")
@@ -329,15 +342,17 @@ class x_cls_make_graphviz_x:
                 )
             return None
         try:
-            src = _graphviz.Source(self._dot_source())
+            source_factory = cast(
+                "_GraphvizSourceFactory",
+                graphviz_mod.Source,
+            )
+            src = source_factory(self._dot_source())
             if self._engine:
                 try:
                     src.engine = self._engine
                 except Exception:
                     pass
-            out_path = src.render(
-                filename=output_basename, format="svg", cleanup=True
-            )
+            out_path = src.render(filename=output_basename, format="svg", cleanup=True)
             return str(out_path)
         except Exception:
             # on failure, still persist DOT for manual conversion
@@ -346,11 +361,7 @@ class x_cls_make_graphviz_x:
 
 
 def main() -> str:
-    g = (
-        x_cls_make_graphviz_x(directed=True)
-        .rankdir("LR")
-        .node_defaults(shape="box")
-    )
+    g = x_cls_make_graphviz_x(directed=True).rankdir("LR").node_defaults(shape="box")
     g.add_node("A", "Start")
     g.add_node("B", "End")
     g.add_edge("A", "B", "to", color="blue")
@@ -363,7 +374,5 @@ def main() -> str:
     return svg or "example.dot"
 
 
-if __name__ == "__main__":
-    _info(main())
 if __name__ == "__main__":
     _info(main())
