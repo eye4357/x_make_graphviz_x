@@ -10,9 +10,12 @@ from __future__ import annotations
 import importlib
 import logging
 import sys as _sys
-from collections.abc import Iterable, Mapping, Sequence
-from types import ModuleType
-from typing import Protocol, cast
+from contextlib import suppress
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping, Sequence
 
 AttrValue = str | int | float | bool | None
 AttrMap = dict[str, AttrValue]
@@ -21,7 +24,7 @@ AttrMap = dict[str, AttrValue]
 class _GraphvizSource(Protocol):
     engine: str | None
 
-    def render(self, filename: str, format: str, cleanup: bool) -> str: ...
+    def render(self, *, filename: str, format: str, cleanup: bool) -> str: ...  # noqa: A002
 
 
 class _GraphvizSourceFactory(Protocol):
@@ -33,17 +36,15 @@ _LOGGER = logging.getLogger("x_make")
 
 def _info(*args: object) -> None:
     msg = " ".join(str(a) for a in args)
-    try:
+    with suppress(Exception):
         _LOGGER.info("%s", msg)
-    except Exception:
-        pass
-    try:
+    printed = False
+    with suppress(Exception):
         print(msg)
-    except Exception:
-        try:
+        printed = True
+    if not printed:
+        with suppress(Exception):
             _sys.stdout.write(msg + "\n")
-        except Exception:
-            pass
 
 
 def _esc(s: str) -> str:
@@ -64,7 +65,11 @@ def _attrs(data: Mapping[str, AttrValue] | None) -> str:
 
 class _Subgraph:
     def __init__(
-        self, name: str, cluster: bool, attrs: Mapping[str, AttrValue] | None = None
+        self,
+        name: str,
+        *,
+        cluster: bool,
+        attrs: Mapping[str, AttrValue] | None = None,
     ) -> None:
         self.name = (
             "cluster_" + name if cluster and not name.startswith("cluster_") else name
@@ -85,10 +90,10 @@ class _Subgraph:
         return f"subgraph {self.name} {{\n  {inner}\n}}"
 
 
-class x_cls_make_graphviz_x:
+class GraphvizBuilder:
     """Rich Graphviz builder."""
 
-    def __init__(self, ctx: object | None = None, directed: bool = True) -> None:
+    def __init__(self, ctx: object | None = None, *, directed: bool = True) -> None:
         self._ctx = ctx
         self._directed = directed
         self._graph_attrs: AttrMap = {}
@@ -99,38 +104,44 @@ class x_cls_make_graphviz_x:
         self._subgraphs: list[_Subgraph] = []
         self._engine: str | None = None  # dot, neato, fdp, sfdp, circo, twopi
 
+    def _is_verbose(self) -> bool:
+        value: object = getattr(self._ctx, "verbose", False)
+        if isinstance(value, bool):
+            return value
+        return bool(value)
+
     # Graph-wide controls
 
-    def directed(self, value: bool = True) -> x_cls_make_graphviz_x:
+    def directed(self, *, value: bool = True) -> GraphvizBuilder:
         self._directed = value
         return self
 
-    def engine(self, name: str) -> x_cls_make_graphviz_x:
+    def engine(self, name: str) -> GraphvizBuilder:
         self._engine = name
         return self
 
-    def graph_attr(self, **attrs: AttrValue) -> x_cls_make_graphviz_x:
+    def graph_attr(self, **attrs: AttrValue) -> GraphvizBuilder:
         self._graph_attrs.update(attrs)
         return self
 
-    def node_defaults(self, **attrs: AttrValue) -> x_cls_make_graphviz_x:
+    def node_defaults(self, **attrs: AttrValue) -> GraphvizBuilder:
         self._node_defaults.update(attrs)
         return self
 
-    def edge_defaults(self, **attrs: AttrValue) -> x_cls_make_graphviz_x:
+    def edge_defaults(self, **attrs: AttrValue) -> GraphvizBuilder:
         self._edge_defaults.update(attrs)
         return self
 
-    def rankdir(self, dir_: str) -> x_cls_make_graphviz_x:
+    def rankdir(self, dir_: str) -> GraphvizBuilder:
         return self.graph_attr(rankdir=dir_)
 
-    def splines(self, mode: str = "spline") -> x_cls_make_graphviz_x:
+    def splines(self, mode: str = "spline") -> GraphvizBuilder:
         return self.graph_attr(splines=mode)
 
-    def overlap(self, mode: str = "false") -> x_cls_make_graphviz_x:
+    def overlap(self, mode: str = "false") -> GraphvizBuilder:
         return self.graph_attr(overlap=mode)
 
-    def rank(self, same: Iterable[str]) -> x_cls_make_graphviz_x:
+    def rank(self, same: Iterable[str]) -> GraphvizBuilder:
         """Create same-rank constraint at top-level."""
         nodes = " ".join(f'"{_esc(n)}"' for n in same)
         self._nodes.append(f"{{ rank = same; {nodes} }}")
@@ -139,8 +150,12 @@ class x_cls_make_graphviz_x:
     # Node/edge builders
 
     def graph_label(
-        self, label: str, loc: str | None = None, fontsize: int | None = None
-    ) -> x_cls_make_graphviz_x:
+        self,
+        label: str,
+        *,
+        loc: str | None = None,
+        fontsize: int | None = None,
+    ) -> GraphvizBuilder:
         """Set a graph label with optional location ('t','b','l','r') and font size."""
         self._graph_attrs["label"] = label
         if loc:
@@ -149,14 +164,17 @@ class x_cls_make_graphviz_x:
             self._graph_attrs["fontsize"] = fontsize
         return self
 
-    def bgcolor(self, color: str) -> x_cls_make_graphviz_x:
+    def bgcolor(self, color: str) -> GraphvizBuilder:
         """Set the graph background color."""
         self._graph_attrs["bgcolor"] = color
         return self
 
     def add_node(
-        self, node_id: str, label: str | None = None, **attrs: AttrValue
-    ) -> x_cls_make_graphviz_x:
+        self,
+        node_id: str,
+        label: str | None = None,
+        **attrs: AttrValue,
+    ) -> GraphvizBuilder:
         # Map convenience keys to DOT/SVG hyperlink attributes
         if "url" in attrs and "URL" not in attrs:
             attrs["URL"] = attrs.pop("url")
@@ -176,7 +194,7 @@ class x_cls_make_graphviz_x:
         from_port: str | None = None,
         to_port: str | None = None,
         **attrs: AttrValue,
-    ) -> x_cls_make_graphviz_x:
+    ) -> GraphvizBuilder:
         # Map convenience keys to DOT/SVG hyperlink attributes
         if "url" in attrs and "URL" not in attrs:
             attrs["URL"] = attrs.pop("url")
@@ -191,7 +209,7 @@ class x_cls_make_graphviz_x:
         self._edges.append(f"{lhs} {arrow} {rhs}{_attrs(attrs)}")
         return self
 
-    def add_raw(self, line: str) -> x_cls_make_graphviz_x:
+    def add_raw(self, line: str) -> GraphvizBuilder:
         """Append a raw DOT line at top level (advanced)."""
         self._nodes.append(line)
         return self
@@ -204,7 +222,7 @@ class x_cls_make_graphviz_x:
         width: str | None = None,
         height: str | None = None,
         **attrs: AttrValue,
-    ) -> x_cls_make_graphviz_x:
+    ) -> GraphvizBuilder:
         """Create an image-backed node (shape='none', image=...)."""
         attrs.setdefault("shape", "none")
         attrs["image"] = image_path
@@ -239,7 +257,11 @@ class x_cls_make_graphviz_x:
     # Subgraphs / clusters
 
     def subgraph(
-        self, name: str, cluster: bool = False, **attrs: AttrValue
+        self,
+        name: str,
+        *,
+        cluster: bool = False,
+        **attrs: AttrValue,
     ) -> _Subgraph:
         sg = _Subgraph(name=name, cluster=cluster, attrs=attrs or None)
         self._subgraphs.append(sg)
@@ -251,7 +273,7 @@ class x_cls_make_graphviz_x:
         node_id: str,
         label: str | None = None,
         **attrs: AttrValue,
-    ) -> x_cls_make_graphviz_x:
+    ) -> GraphvizBuilder:
         if label is not None and "label" not in attrs:
             attrs["label"] = label
         sg.nodes.append(f'"{_esc(node_id)}"{_attrs(attrs)}')
@@ -264,7 +286,7 @@ class x_cls_make_graphviz_x:
         dst: str,
         label: str | None = None,
         **attrs: AttrValue,
-    ) -> x_cls_make_graphviz_x:
+    ) -> GraphvizBuilder:
         arrow = "->" if self._directed else "--"
         if label is not None and "label" not in attrs:
             attrs["label"] = label
@@ -284,40 +306,45 @@ class x_cls_make_graphviz_x:
             lines.append("edge" + _attrs(self._edge_defaults))
         lines.extend(self._nodes)
         lines.extend(self._edges)
-        for sg in self._subgraphs:
-            lines.append(sg.dot())
+        lines.extend(sg.dot() for sg in self._subgraphs)
         body = "\n  ".join(lines)
         return f"{kind} {name} {{\n  {body}\n}}\n"
 
     # Render
 
-    def render(self, output_file: str = "graph", format: str = "png") -> str:
+    def render(
+        self,
+        output_file: str = "graph",
+        *,
+        output_format: str = "png",
+    ) -> str:
         dot = self._dot_source()
-        if getattr(self._ctx, "verbose", False):
-            _info(
-                f"[graphviz] rendering output_file={output_file!r} format={format!r} engine={self._engine or 'dot'}"
+        if self._is_verbose():
+            render_msg = (
+                f"[graphviz] rendering output_file={output_file!r} "
+                f"format={output_format!r} engine={self._engine or 'dot'}"
             )
+            _info(render_msg)
         try:
-            graphviz_mod: ModuleType = importlib.import_module("graphviz")
+            graphviz_mod = importlib.import_module("graphviz")
             source_factory = cast(
                 "_GraphvizSourceFactory",
                 graphviz_mod.Source,
             )
             graphviz_source = source_factory(dot)
             if self._engine:
-                try:
+                with suppress(Exception):
                     graphviz_source.engine = self._engine
-                except Exception:
-                    pass
             out_path = graphviz_source.render(
-                filename=output_file, format=format, cleanup=True
+                filename=output_file,
+                format=output_format,
+                cleanup=True,
             )
             return str(out_path)
-        except Exception:
-            dot_path = f"{output_file}.dot"
-            with open(dot_path, "w", encoding="utf-8") as f:
-                f.write(dot)
-            if getattr(self._ctx, "verbose", False):
+        except Exception:  # noqa: BLE001 - fallback to DOT is intentional
+            dot_path = Path(f"{output_file}.dot")
+            dot_path.write_text(dot, encoding="utf-8")
+            if self._is_verbose():
                 _info(f"[graphviz] wrote DOT fallback to {dot_path}")
             return dot
 
@@ -325,21 +352,26 @@ class x_cls_make_graphviz_x:
 
     def save_dot(self, path: str) -> str:
         dot = self._dot_source()
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(dot)
-        return path
+        target = Path(path)
+        target.write_text(dot, encoding="utf-8")
+        return str(target)
 
     def to_svg(self, output_basename: str = "graph") -> str | None:
-        """Render SVG via graphviz if available. Returns SVG path or None on fallback."""
+        """Render SVG via graphviz if available.
+
+        Returns the SVG path on success or ``None`` when falling back to a DOT file.
+        """
         try:
-            graphviz_mod: ModuleType = importlib.import_module("graphviz")
-        except Exception:
-            # ensure DOT exists for external conversion, even if graphviz python package is missing
-            self.save_dot(f"{output_basename}.dot")
-            if getattr(self._ctx, "verbose", False):
-                _info(
-                    "[graphviz] python 'graphviz' not available; wrote DOT for external svg conversion"
+            graphviz_mod = importlib.import_module("graphviz")
+        except ImportError:
+            dot_path = Path(f"{output_basename}.dot")
+            dot_path.write_text(self._dot_source(), encoding="utf-8")
+            if self._is_verbose():
+                missing_msg = (
+                    "[graphviz] python 'graphviz' not available; "
+                    "wrote DOT for external svg conversion"
                 )
+                _info(missing_msg)
             return None
         try:
             source_factory = cast(
@@ -348,20 +380,24 @@ class x_cls_make_graphviz_x:
             )
             src = source_factory(self._dot_source())
             if self._engine:
-                try:
+                with suppress(Exception):
                     src.engine = self._engine
-                except Exception:
-                    pass
-            out_path = src.render(filename=output_basename, format="svg", cleanup=True)
+            out_path = src.render(
+                filename=output_basename,
+                format="svg",
+                cleanup=True,
+            )
             return str(out_path)
-        except Exception:
-            # on failure, still persist DOT for manual conversion
-            self.save_dot(f"{output_basename}.dot")
+        except Exception:  # noqa: BLE001 - fallback to DOT is intentional
+            Path(f"{output_basename}.dot").write_text(
+                self._dot_source(),
+                encoding="utf-8",
+            )
             return None
 
 
 def main() -> str:
-    g = x_cls_make_graphviz_x(directed=True).rankdir("LR").node_defaults(shape="box")
+    g = GraphvizBuilder(directed=True).rankdir("LR").node_defaults(shape="box")
     g.add_node("A", "Start")
     g.add_node("B", "End")
     g.add_edge("A", "B", "to", color="blue")
@@ -376,3 +412,9 @@ def main() -> str:
 
 if __name__ == "__main__":
     _info(main())
+
+
+x_cls_make_graphviz_x = GraphvizBuilder
+
+
+__all__ = ["GraphvizBuilder", "x_cls_make_graphviz_x"]
