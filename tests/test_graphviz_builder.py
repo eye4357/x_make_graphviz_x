@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
-from typing import Any
-
-import pytest
+from typing import TYPE_CHECKING, NoReturn
 
 from x_cls_make_graphviz_x import GraphvizBuilder
+
+if TYPE_CHECKING:
+    from _pytest.monkeypatch import MonkeyPatch
 
 
 def test_save_dot_includes_configuration(tmp_path: Path) -> None:
@@ -35,10 +36,13 @@ def test_save_dot_includes_configuration(tmp_path: Path) -> None:
     assert 'weight="2"' in dot_source
 
 
-def test_to_svg_falls_back_when_graphviz_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_to_svg_falls_back_when_graphviz_missing(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
     builder = GraphvizBuilder()
 
-    def fake_import(name: str, package: str | None = None) -> Any:  # noqa: ARG001
+    def fake_import(name: str, package: str | None = None) -> NoReturn:  # noqa: ARG001
         raise ImportError("graphviz not installed")
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
@@ -52,10 +56,13 @@ def test_to_svg_falls_back_when_graphviz_missing(tmp_path: Path, monkeypatch: py
     assert "digraph" in dot_file.read_text(encoding="utf-8")
 
 
-def test_render_falls_back_to_dot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_render_falls_back_to_dot(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
     builder = GraphvizBuilder()
 
-    def fake_import(name: str, package: str | None = None) -> Any:  # noqa: ARG001
+    def fake_import(name: str, package: str | None = None) -> NoReturn:  # noqa: ARG001
         raise RuntimeError("graphviz import failure")
 
     monkeypatch.setattr(importlib, "import_module", fake_import)

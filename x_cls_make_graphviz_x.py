@@ -24,7 +24,9 @@ AttrMap = dict[str, AttrValue]
 class _GraphvizSource(Protocol):
     engine: str | None
 
-    def render(self, *, filename: str, format: str, cleanup: bool) -> str: ...  # noqa: A002
+    def render(
+        self, *, filename: str, format: str, cleanup: bool
+    ) -> str: ...
 
 
 class _GraphvizSourceFactory(Protocol):
