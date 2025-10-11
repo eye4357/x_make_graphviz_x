@@ -5,6 +5,8 @@ Supports directed/undirected graphs, subgraphs/clusters, ranks,
 record/HTML labels, ports, and rich attributes.
 """
 
+# ruff: noqa: A002 - retain parameter name parity with graphviz API
+
 from __future__ import annotations
 
 import importlib
@@ -24,9 +26,7 @@ AttrMap = dict[str, AttrValue]
 class _GraphvizSource(Protocol):
     engine: str | None
 
-    def render(
-        self, *, filename: str, format: str, cleanup: bool
-    ) -> str: ...
+    def render(self, *, filename: str, format: str, cleanup: bool) -> str: ...
 
 
 class _GraphvizSourceFactory(Protocol):

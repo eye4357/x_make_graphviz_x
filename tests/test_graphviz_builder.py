@@ -1,5 +1,7 @@
 """Tests for the Graphviz builder utilities."""
 
+# ruff: noqa: S101 - assertions are appropriate in test modules
+
 from __future__ import annotations
 
 import importlib
@@ -43,7 +45,7 @@ def test_to_svg_falls_back_when_graphviz_missing(
     builder = GraphvizBuilder()
 
     def fake_import(name: str, package: str | None = None) -> NoReturn:  # noqa: ARG001
-        raise ImportError("graphviz not installed")
+        raise ImportError from None
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
 
@@ -63,7 +65,7 @@ def test_render_falls_back_to_dot(
     builder = GraphvizBuilder()
 
     def fake_import(name: str, package: str | None = None) -> NoReturn:  # noqa: ARG001
-        raise RuntimeError("graphviz import failure")
+        raise RuntimeError from None
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
 
