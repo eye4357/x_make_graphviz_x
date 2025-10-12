@@ -44,7 +44,7 @@ def test_to_svg_falls_back_when_graphviz_missing(
 ) -> None:
     builder = GraphvizBuilder()
 
-    def fake_import(name: str, package: str | None = None) -> NoReturn:  # noqa: ARG001
+    def fake_import(_name: str, _package: str | None = None) -> NoReturn:
         raise ImportError from None
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
@@ -64,7 +64,7 @@ def test_render_falls_back_to_dot(
 ) -> None:
     builder = GraphvizBuilder()
 
-    def fake_import(name: str, package: str | None = None) -> NoReturn:  # noqa: ARG001
+    def fake_import(_name: str, _package: str | None = None) -> NoReturn:
         raise RuntimeError from None
 
     monkeypatch.setattr(importlib, "import_module", fake_import)
