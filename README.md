@@ -1,41 +1,41 @@
-# x_make_graphviz_x
+# x_make_graphviz_x — Lab Notes from Walter White
 
-Rich Graphviz DOT builder with optional SVG rendering via the `graphviz` Python package.
+> "I sketch out every cook before I fire the burner. Graphviz is how I show the crew exactly where each molecule flows."
 
-Features:
-- Directed/Undirected graphs; layout engine (dot, neato, fdp, sfdp, circo, twopi).
-- Graph helpers and defaults:
-  - graph_attr(rankdir="LR", splines="spline", overlap="false")
-  - node_defaults(shape="box", style="filled", fillcolor="#eef", fontname="Consolas")
-  - edge_defaults(color="#888", penwidth="2")
-  - graph_label("My Graph", loc="t"), bgcolor("#ffffff"); rank([...]) for same-rank.
-- Nodes/Edges:
-  - add_node("A", "Start", url="https://example.com", tooltip="Go", fillcolor="#efe", style="filled")
-  - add_edge("A","B","go", color="#1e90ff", url="https://example.com/a-b")
-  - record_label([...]) and html_label("...") helpers; image_node("Logo","logo.png")
-  - Ports: add_edge("rec","rec", from_port="f0", to_port="f1")
-- Subgraphs/Clusters:
-  - sg = subgraph("cluster_0", cluster=True, label="Group"); sub_node(...); sub_edge(...)
-- Advanced: add_raw("compound=true") to inject raw DOT.
+## Manifesto
+x_make_graphviz_x is my Graphviz DOT builder—clusters, graph attributes, SVG export, the works. It lets me wire diagrams as code so the Road to 0.20.0 teams can see pipelines before a single task executes.
 
-Usage:
-```python
-from x_4357_make_graphviz_x.x_cls_make_graphviz_x import x_cls_make_graphviz_x as G
+## Ingredients
+- Python 3.11+
+- Graphviz system binaries (`dot` on PATH) for SVG rendering
+- Ruff, Black, MyPy, and Pyright to keep helpers in spec
+- Optional: `graphviz` Python package for direct rendering from scripts
 
-g = G(directed=True).rankdir("LR").node_defaults(shape="box")
-g.graph_label("Pipeline", loc="t").bgcolor("#ffffff")
-g.add_node("A","Start", style="filled", fillcolor="#efe", url="https://example.com")
-g.add_node("B","End", style="filled", fillcolor="#fee")
-g.add_edge("A","B","go", color="#1e90ff", tooltip="A to B")
-g.save_dot("example.dot")
-# Render SVG if python-graphviz and Graphviz binaries are available
-g.to_svg("example")
-```
+## Cook Instructions
+1. `python -m venv .venv`
+2. `.\.venv\Scripts\Activate.ps1`
+3. `python -m pip install --upgrade pip`
+4. `pip install -r requirements.txt`
+5. `python -m x_make_graphviz_x.tests.example` or your own scripts to generate DOT and SVG outputs
 
-SVG conversion:
-- Install Graphviz system package and ensure `dot` is on PATH.
-- Install Python package: `pip install graphviz`.
-- In code: `g.to_svg("example")` -> writes example.svg. Or CLI: `dot -Tsvg example.dot -o example.svg`.
-- Install Graphviz system package and ensure `dot` is on PATH.
-- Install Python package: `pip install graphviz`.
-- In code: `g.to_svg("example")` -> writes example.svg. Or CLI: `dot -Tsvg example.dot -o example.svg`.
+## Quality Assurance
+| Check | Command |
+| --- | --- |
+| Formatting sweep | `python -m black .`
+| Lint interrogation | `python -m ruff check .`
+| Type audit | `python -m mypy .`
+| Static contract scan | `python -m pyright`
+| Functional verification | `pytest`
+
+## Distribution Chain
+- [Changelog](./CHANGELOG.md)
+- [Road to 0.20.0 Control Room](../x_0_make_all_x/Change%20Control/0.20.0/index.md)
+- [Road to 0.20.0 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.0/Road%20to%200.20.0%20Engineering%20Proposal%20-%20Walter%20White.md)
+
+## Cross-Linked Intelligence
+- [x_make_markdown_x](../x_make_markdown_x/README.md) — consumes these diagrams for documentation drops
+- [x_make_mermaid_x](../x_make_mermaid_x/README.md) — the sister renderer for Mermaid schematics
+- [x_0_make_all_x](../x_0_make_all_x/README.md) — orchestrator references these diagrams when choreographing release phases
+
+## Lab Etiquette
+Check in every new diagram helper with matching tests and update the Change Control index with the pipeline it visualizes. Clarity saves lives—and releases.
