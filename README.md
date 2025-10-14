@@ -3,7 +3,10 @@
 > "I sketch out every cook before I fire the burner. Graphviz is how I show the crew exactly where each molecule flows."
 
 ## Manifesto
-x_make_graphviz_x is my Graphviz DOT builder—clusters, graph attributes, SVG export, the works. It lets me wire diagrams as code so the Road to 0.20.1 teams can see pipelines before a single task executes.
+x_make_graphviz_x is my Graphviz DOT builder—clusters, graph attributes, SVG export, the works. It lets me wire diagrams as code so the Road to 0.20.2 teams can see pipelines before a single task executes.
+
+## 0.20.2 Command Sequence
+Version 0.20.2 tightens the diagram canon. Every graph in this lab now mirrors the Road to 0.20.2 flowchart, annotated with the same precision I reserve for the production line. Deviations are liabilities—erase them before they multiply.
 
 ## Ingredients
 - Python 3.11+
@@ -29,8 +32,8 @@ x_make_graphviz_x is my Graphviz DOT builder—clusters, graph attributes, SVG e
 
 ## Distribution Chain
 - [Changelog](./CHANGELOG.md)
-- [Road to 0.20.1 Control Room Ledger](../x_0_make_all_x/Change%20Control/0.20.1/Road%20to%200.20.1%20Engineering%20Proposal.md)
-- [Road to 0.20.1 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.1/Road%20to%200.20.1%20Engineering%20Proposal.md)
+- [Road to 0.20.2 Control Room Ledger](../x_0_make_all_x/Change%20Control/0.20.2/Road%20to%200.20.2%20Engineering%20Proposal.md)
+- [Road to 0.20.2 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.2/Road%20to%200.20.2%20Engineering%20Proposal.md)
 
 ## Cross-Linked Intelligence
 - [x_make_markdown_x](../x_make_markdown_x/README.md) — consumes these diagrams for documentation drops
