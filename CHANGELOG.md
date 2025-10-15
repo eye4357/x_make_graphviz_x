@@ -2,6 +2,10 @@
 
 All notable changes to x_make_graphviz_x are tracked here. We stick to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) structure and Semantic Versioning because diagrams deserve just as much discipline as chemistry.
 
+## [0.20.3] - 2025-10-14
+### Changed
+- Updated documentation to reference the Road to 0.20.3 diagram canon and acknowledge the JSON telemetry flow.
+
 ## [0.20.2] - 2025-10-14
 ### Changed
 - Recut the README to align diagrams with the Road to 0.20.2 blueprint and documented the control-room expectations for the refreshed charts.
