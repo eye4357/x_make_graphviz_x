@@ -16,6 +16,12 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
+from x_make_common_x.exporters import (
+    CommandRunner,
+    ExportResult,
+    export_graphviz_to_svg,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
@@ -95,7 +101,14 @@ class _Subgraph:
 class GraphvizBuilder:
     """Rich Graphviz builder."""
 
-    def __init__(self, ctx: object | None = None, *, directed: bool = True) -> None:
+    def __init__(
+        self,
+        ctx: object | None = None,
+        *,
+        directed: bool = True,
+        runner: CommandRunner | None = None,
+        dot_binary: str | None = None,
+    ) -> None:
         self._ctx = ctx
         self._directed = directed
         self._graph_attrs: AttrMap = {}
@@ -105,6 +118,9 @@ class GraphvizBuilder:
         self._edges: list[str] = []
         self._subgraphs: list[_Subgraph] = []
         self._engine: str | None = None  # dot, neato, fdp, sfdp, circo, twopi
+        self._runner: CommandRunner | None = runner
+        self._dot_binary: str | None = dot_binary
+        self._last_export_result: ExportResult | None = None
 
     def _is_verbose(self) -> bool:
         value: object = getattr(self._ctx, "verbose", False)
@@ -363,39 +379,32 @@ class GraphvizBuilder:
 
         Returns the SVG path on success or ``None`` when falling back to a DOT file.
         """
-        try:
-            graphviz_mod = importlib.import_module("graphviz")
-        except ImportError:
-            dot_path = Path(f"{output_basename}.dot")
-            dot_path.write_text(self._dot_source(), encoding="utf-8")
-            if self._is_verbose():
-                missing_msg = (
-                    "[graphviz] python 'graphviz' not available; "
-                    "wrote DOT for external svg conversion"
-                )
-                _info(missing_msg)
-            return None
-        try:
-            source_factory = cast(
-                "_GraphvizSourceFactory",
-                graphviz_mod.Source,
+        target_path = Path(output_basename)
+        if target_path.suffix:
+            stem = target_path.stem
+            output_dir = target_path.parent or Path()
+        else:
+            stem = target_path.name
+            output_dir = target_path.parent or Path()
+        result = export_graphviz_to_svg(
+            self._dot_source(),
+            output_dir=output_dir,
+            stem=stem,
+            graphviz_path=self._dot_binary,
+            runner=self._runner,
+        )
+        self._last_export_result = result
+        if result.succeeded and result.output_path is not None:
+            return str(result.output_path)
+        if self._is_verbose():
+            _info(
+                "[graphviz] dot export failed; retained DOT at",
+                str((output_dir / f"{stem}.dot").resolve()),
             )
-            src = source_factory(self._dot_source())
-            if self._engine:
-                with suppress(Exception):
-                    src.engine = self._engine
-            out_path = src.render(
-                filename=output_basename,
-                format="svg",
-                cleanup=True,
-            )
-            return str(out_path)
-        except Exception:  # noqa: BLE001 - fallback to DOT is intentional
-            Path(f"{output_basename}.dot").write_text(
-                self._dot_source(),
-                encoding="utf-8",
-            )
-            return None
+        return None
+
+    def get_last_export_result(self) -> ExportResult | None:
+        return self._last_export_result
 
 
 def main() -> str:

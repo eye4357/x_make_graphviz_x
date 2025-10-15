@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 import importlib
+from collections.abc import Sequence
 from pathlib import Path
+from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, NoReturn
 
 from x_cls_make_graphviz_x import GraphvizBuilder
@@ -38,16 +40,8 @@ def test_save_dot_includes_configuration(tmp_path: Path) -> None:
     assert 'weight="2"' in dot_source
 
 
-def test_to_svg_falls_back_when_graphviz_missing(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
+def test_to_svg_falls_back_when_dot_missing(tmp_path: Path) -> None:
     builder = GraphvizBuilder()
-
-    def fake_import(_name: str, _package: str | None = None) -> NoReturn:
-        raise ImportError from None
-
-    monkeypatch.setattr(importlib, "import_module", fake_import)
 
     output_base = tmp_path / "diagram"
     result = builder.to_svg(str(output_base))
@@ -56,6 +50,31 @@ def test_to_svg_falls_back_when_graphviz_missing(
     dot_file = Path(f"{output_base}.dot")
     assert dot_file.exists()
     assert "digraph" in dot_file.read_text(encoding="utf-8")
+    assert builder.get_last_export_result() is not None
+    last = builder.get_last_export_result()
+    assert last and last.succeeded is False
+
+
+def test_to_svg_uses_shared_exporter(tmp_path: Path) -> None:
+    dot_binary = tmp_path / "dot.exe"
+    dot_binary.write_text("binary", encoding="utf-8")
+
+    def runner(command: Sequence[str]) -> CompletedProcess[str]:
+        Path(command[-1]).write_text("<svg />", encoding="utf-8")
+        return CompletedProcess(list(command), 0, stdout="ok", stderr="")
+
+    builder = GraphvizBuilder(runner=runner, dot_binary=str(dot_binary))
+    builder.add_node("a")
+
+    output_base = tmp_path / "diagram"
+    result = builder.to_svg(str(output_base))
+
+    assert result == str(tmp_path / "diagram.svg")
+    assert result is not None
+    svg_path = Path(result)
+    assert svg_path.exists()
+    last = builder.get_last_export_result()
+    assert last and last.succeeded is True
 
 
 def test_render_falls_back_to_dot(
