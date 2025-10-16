@@ -3,10 +3,10 @@
 > "I sketch out every cook before I fire the burner. Graphviz is how I show the crew exactly where each molecule flows."
 
 ## Manifesto
-x_make_graphviz_x is my Graphviz DOT builder—clusters, graph attributes, SVG export, the works. It lets me wire diagrams as code so the Road to 0.20.3 teams can see pipelines before a single task executes.
+x_make_graphviz_x is my Graphviz DOT builder—clusters, graph attributes, SVG export, the works. It lets me wire diagrams as code so the Road to 0.20.4 teams can see pipelines before a single task executes.
 
-## 0.20.3 Command Sequence
-Version 0.20.3 threads the JSON board pivot through every diagram. Each DOT export now carries the refreshed node annotations so the orchestration crew sees exactly how telemetry flows.
+## 0.20.4 Command Sequence
+Version 0.20.4 locks every DOT render behind the shared exporter rig in `x_make_common_x`. The generator now calls `export_graphviz_to_svg`, captures the `ExportResult` metadata, and hands the orchestrator a deterministic SVG path for Kanban evidence. Missing binaries throw disciplined warnings instead of mystery failures.
 
 ## Ingredients
 - Python 3.11+
@@ -32,7 +32,7 @@ Version 0.20.3 threads the JSON board pivot through every diagram. Each DOT expo
 
 ## Distribution Chain
 - [Changelog](./CHANGELOG.md)
-- [Road to 0.20.3 Control Room Ledger](../x_0_make_all_x/Change%20Control/0.20.3/Road%20to%200.20.3%20Engineering%20Proposal.md)
+- [Road to 0.20.4 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.4/Road%20to%200.20.4%20Engineering%20Proposal.md)
 - [Road to 0.20.3 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.3/Road%20to%200.20.3%20Engineering%20Proposal.md)
 
 ## Cross-Linked Intelligence

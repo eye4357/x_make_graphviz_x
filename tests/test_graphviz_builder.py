@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Sequence
 from pathlib import Path
 from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, NoReturn
@@ -13,6 +12,8 @@ from typing import TYPE_CHECKING, NoReturn
 from x_cls_make_graphviz_x import GraphvizBuilder
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from _pytest.monkeypatch import MonkeyPatch
 
 
@@ -50,9 +51,9 @@ def test_to_svg_falls_back_when_dot_missing(tmp_path: Path) -> None:
     dot_file = Path(f"{output_base}.dot")
     assert dot_file.exists()
     assert "digraph" in dot_file.read_text(encoding="utf-8")
-    assert builder.get_last_export_result() is not None
     last = builder.get_last_export_result()
-    assert last and last.succeeded is False
+    assert last is not None
+    assert last.succeeded is False
 
 
 def test_to_svg_uses_shared_exporter(tmp_path: Path) -> None:
@@ -69,12 +70,13 @@ def test_to_svg_uses_shared_exporter(tmp_path: Path) -> None:
     output_base = tmp_path / "diagram"
     result = builder.to_svg(str(output_base))
 
-    assert result == str(tmp_path / "diagram.svg")
     assert result is not None
+    assert result == str(tmp_path / "diagram.svg")
     svg_path = Path(result)
     assert svg_path.exists()
     last = builder.get_last_export_result()
-    assert last and last.succeeded is True
+    assert last is not None
+    assert last.succeeded is True
 
 
 def test_render_falls_back_to_dot(

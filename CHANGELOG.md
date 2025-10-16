@@ -2,6 +2,11 @@
 
 All notable changes to x_make_graphviz_x are tracked here. We stick to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) structure and Semantic Versioning because diagrams deserve just as much discipline as chemistry.
 
+## [0.20.4] - 2025-10-15
+### Changed
+- Routed SVG exports through the shared `export_graphviz_to_svg` helper, recording `ExportResult` metadata and clear failure detail when Graphviz is absent.
+- README tightened for the Road to 0.20.4 release to document the exporter handoff and Kanban evidence handshakes.
+
 ## [0.20.3] - 2025-10-14
 ### Changed
 - Updated documentation to reference the Road to 0.20.3 diagram canon and acknowledge the JSON telemetry flow.
