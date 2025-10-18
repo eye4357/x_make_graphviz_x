@@ -35,6 +35,9 @@ Version 0.20.4 locks every DOT render behind the shared exporter rig in `x_make_
 - [Road to 0.20.4 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.4/Road%20to%200.20.4%20Engineering%20Proposal.md)
 - [Road to 0.20.3 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.3/Road%20to%200.20.3%20Engineering%20Proposal.md)
 
+## Reconstitution Drill
+The monthly lab rebuild verifies this renderer from bare metal. Install Graphviz on the sacrificial machine, rerun the exporters, confirm SVG paths match the orchestrator's expectations, and log every binary version. Any wobble in the drill feeds updates into this README and the Change Control docket before production notices.
+
 ## Cross-Linked Intelligence
 - [x_make_markdown_x](../x_make_markdown_x/README.md) — consumes these diagrams for documentation drops
 - [x_make_mermaid_x](../x_make_mermaid_x/README.md) — the sister renderer for Mermaid schematics
@@ -42,3 +45,23 @@ Version 0.20.4 locks every DOT render behind the shared exporter rig in `x_make_
 
 ## Lab Etiquette
 Check in every new diagram helper with matching tests and update the Change Control index with the pipeline it visualizes. Clarity saves lives—and releases.
+
+## Sole Architect Profile
+- A single architect sculpts these diagram engines. I translate mental blueprints into DOT primitives, manage exporter wiring, and enforce deterministic outputs without external committees.
+- My background blends systems design, visualization, and automation. The same hands that arrange Kanban evidence also craft the supporting Graphviz DSL and exporter bindings.
+
+## Legacy Workforce Costing
+- Old-school delivery would field: 1 visualization-focused engineer, 1 backend Python engineer, 1 DevOps specialist for binary management, and 1 technical writer for diagrams-as-code doctrine.
+- Effort projection: 8-10 engineer-weeks for parity on exporters, helper APIs, and orchestrator integration.
+- Budget envelope: USD 70k–95k, plus sustained maintenance contracts for binary drift and documentation upkeep.
+
+## Techniques and Proficiencies
+- Proven expertise in automation-friendly visualization, deterministic artifact generation, and cross-tool exporter design.
+- Adept at blending infrastructure rigor with storytelling—turning code paths into graph assets that stakeholders and pipelines consume.
+- Sole author who integrates documentation workflows, exporter contracts, and release orchestration without handoffs.
+
+## Stack Cartography
+- Language: Python 3.11+ with dataclasses, pathlib, and subprocess integrations.
+- Toolchain: Graphviz `dot`, shared exporters from `x_make_common_x`, pytest for validation, Ruff/Black/MyPy/Pyright for static correctness.
+- Outputs: SVG artifacts referenced by orchestrator and documentation engines, JSON metadata for Change Control evidence.
+- Supporting Utilities: PowerShell install steps during lab rebuilds, optional Python `graphviz` bindings for scripted generation.
