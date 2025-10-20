@@ -9,7 +9,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, NoReturn
 
-from x_cls_make_graphviz_x import GraphvizBuilder
+from x_make_graphviz_x import GraphvizBuilder
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

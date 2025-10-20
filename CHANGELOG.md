@@ -1,6 +1,6 @@
-# Changelog — Control Room Production Log
+# x_make_graphviz_x — Production Ledger
 
-All notable changes to x_make_graphviz_x are tracked here. We stick to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) structure and Semantic Versioning because diagrams deserve just as much discipline as chemistry.
+I record every substantive change to this diagram engine here. Entries follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and Semantic Versioning so audits can correlate SVG artefacts with the exact code that produced them.
 
 ## [0.20.4] - 2025-10-15
 ### Changed
@@ -9,7 +9,7 @@ All notable changes to x_make_graphviz_x are tracked here. We stick to [Keep a C
 
 ## [0.20.3] - 2025-10-14
 ### Changed
-- Updated documentation to reference the Road to 0.20.3 diagram canon and acknowledge the JSON telemetry flow.
+- Updated documentation to reference the Road to 0.20.3 diagram canon and acknowledge the JSON audit flow.
 
 ## [0.20.2] - 2025-10-14
 ### Changed

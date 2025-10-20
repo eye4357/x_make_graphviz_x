@@ -1,0 +1,32 @@
+{
+  "command": "x_make_graphviz_x",
+  "parameters": {
+    "directed": true,
+    "engine": "dot",
+    "graph_attributes": {
+      "rankdir": "LR"
+    },
+    "nodes": [
+      {
+        "id": "A",
+        "label": "Start"
+      },
+      {
+        "id": "B",
+        "label": "Finish"
+      }
+    ],
+    "edges": [
+      {
+        "source": "A",
+        "target": "B",
+        "label": "next"
+      }
+    ],
+    "export": {
+      "enable": true,
+      "filename": "diagram.svg",
+      "directory": "C:\\x_runner_x\\artifacts"
+    }
+  }
+}

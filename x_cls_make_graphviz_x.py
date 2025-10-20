@@ -9,18 +9,25 @@ record/HTML labels, ports, and rich attributes.
 
 from __future__ import annotations
 
+import argparse
 import importlib
+import json
 import logging
 import sys as _sys
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
+from jsonschema import ValidationError  # type: ignore[import-untyped]
 from x_make_common_x.exporters import (
     CommandRunner,
     ExportResult,
     export_graphviz_to_svg,
 )
+from x_make_common_x.json_contracts import validate_payload
+
+from x_make_graphviz_x.json_contracts import INPUT_SCHEMA, OUTPUT_SCHEMA
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -407,6 +414,183 @@ class GraphvizBuilder:
         return self._last_export_result
 
 
+def _coerce_attr_map(value: object) -> AttrMap:
+    if not isinstance(value, Mapping):
+        return {}
+    attrs: AttrMap = {}
+    typed = cast("Mapping[str, object]", value)
+    for key, raw in typed.items():
+        attrs[str(key)] = cast("AttrValue", raw)
+    return attrs
+
+
+def _normalize_nodes(
+    builder: GraphvizBuilder,
+    nodes: Sequence[object],
+) -> None:
+    for entry in nodes:
+        if not isinstance(entry, Mapping):
+            continue
+        node_id_obj = entry.get("id")
+        if not isinstance(node_id_obj, str) or not node_id_obj:
+            continue
+        label_obj = entry.get("label")
+        label: str | None
+        if isinstance(label_obj, str):
+            label = label_obj
+        elif label_obj is None:
+            label = None
+        else:
+            label = str(label_obj)
+        attrs = _coerce_attr_map(entry.get("attributes"))
+        node_attrs: Mapping[str, AttrValue] = attrs
+        builder.add_node(node_id_obj, label=label, **node_attrs)
+
+
+def _normalize_edges(
+    builder: GraphvizBuilder,
+    edges: Sequence[object],
+) -> None:
+    for entry in edges:
+        if not isinstance(entry, Mapping):
+            continue
+        source = entry.get("source")
+        target = entry.get("target")
+        if not isinstance(source, str) or not isinstance(target, str):
+            continue
+        label_obj = entry.get("label")
+        label: str | None
+        if isinstance(label_obj, str):
+            label = label_obj
+        elif label_obj is None:
+            label = None
+        else:
+            label = str(label_obj)
+        attrs = _coerce_attr_map(entry.get("attributes"))
+        edge_attrs = dict(attrs)
+        from_port_obj = edge_attrs.pop("from_port", None)
+        to_port_obj = edge_attrs.pop("to_port", None)
+        from_port = from_port_obj if isinstance(from_port_obj, str) else None
+        to_port = to_port_obj if isinstance(to_port_obj, str) else None
+        builder.add_edge(
+            source,
+            target,
+            label=label,
+            from_port=from_port,
+            to_port=to_port,
+            **edge_attrs,
+        )
+
+
+def _failure_payload(message: str, *, details: Mapping[str, object] | None = None) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "status": "failure",
+        "message": message,
+    }
+    if details:
+        payload["details"] = dict(details)
+    return payload
+
+
+def main_json(
+    payload: Mapping[str, object],
+    *,
+    ctx: object | None = None,
+) -> dict[str, object]:
+    """Execute the Graphviz builder using the JSON contract."""
+
+    try:
+        validate_payload(payload, INPUT_SCHEMA)
+    except ValidationError as exc:
+        return _failure_payload(
+            "input payload failed validation",
+            details={
+                "error": exc.message,
+                "path": [str(part) for part in exc.path],
+                "schema_path": [str(part) for part in exc.schema_path],
+            },
+        )
+
+    parameters_obj = payload.get("parameters", {})
+    parameters = cast("Mapping[str, object]", parameters_obj)
+
+    directed_value = parameters.get("directed", True)
+    directed = bool(directed_value) if not isinstance(directed_value, bool) else directed_value
+    builder = GraphvizBuilder(ctx=ctx, directed=directed)
+
+    engine_obj = parameters.get("engine")
+    if isinstance(engine_obj, str) and engine_obj:
+        builder.engine(engine_obj)
+
+    graph_attrs_obj = parameters.get("graph_attributes")
+    graph_attrs = _coerce_attr_map(graph_attrs_obj)
+    if graph_attrs:
+        builder.graph_attr(**graph_attrs)
+
+    nodes_obj = parameters.get("nodes", [])
+    if isinstance(nodes_obj, Sequence):
+        _normalize_nodes(builder, nodes_obj)
+
+    edges_obj = parameters.get("edges", [])
+    if isinstance(edges_obj, Sequence):
+        _normalize_edges(builder, edges_obj)
+
+    export_obj = parameters.get("export")
+    svg_path: str | None = None
+    if isinstance(export_obj, Mapping) and export_obj.get("enable"):
+        export_mapping = cast("Mapping[str, object]", export_obj)
+        filename_obj = export_mapping.get("filename")
+        directory_obj = export_mapping.get("directory")
+        filename = filename_obj if isinstance(filename_obj, str) and filename_obj else "graph"
+        base = Path(directory_obj) if isinstance(directory_obj, str) and directory_obj else Path()
+        target = base / filename
+        svg_result = builder.to_svg(str(target))
+        svg_path = svg_result if svg_result else None
+
+    dot_source = builder._dot_source()
+    result: dict[str, object] = {
+        "status": "success",
+        "dot_source": dot_source,
+        "svg_path": svg_path,
+        "report_path": None,
+    }
+
+    try:
+        validate_payload(result, OUTPUT_SCHEMA)
+    except ValidationError as exc:
+        return _failure_payload(
+            "generated output failed schema validation",
+            details={
+                "error": exc.message,
+                "path": [str(part) for part in exc.path],
+                "schema_path": [str(part) for part in exc.schema_path],
+            },
+        )
+    return result
+
+
+def _load_json_payload(file_path: str | None) -> Mapping[str, object]:
+    if file_path:
+        with Path(file_path).open("r", encoding="utf-8") as handle:
+            return cast("Mapping[str, object]", json.load(handle))
+    return cast("Mapping[str, object]", json.load(_sys.stdin))
+
+
+def _run_json_cli(args: Sequence[str]) -> None:
+    parser = argparse.ArgumentParser(description="x_make_graphviz_x JSON runner")
+    parser.add_argument("--json", action="store_true", help="Read JSON payload from stdin")
+    parser.add_argument("--json-file", type=str, help="Path to JSON payload file")
+    parsed = parser.parse_args(args)
+
+    if not (parsed.json or parsed.json_file):
+        parser.error("JSON input required. Use --json for stdin or --json-file <path>.")
+
+    payload = _load_json_payload(parsed.json_file if parsed.json_file else None)
+    result = main_json(payload)
+    json.dump(result, _sys.stdout, indent=2)
+    _sys.stdout.write("\n")
+
+
 def main() -> str:
     g = GraphvizBuilder(directed=True).rankdir("LR").node_defaults(shape="box")
     g.add_node("A", "Start")
@@ -420,12 +604,13 @@ def main() -> str:
     svg = g.to_svg("example")
     return svg or "example.dot"
 
+    return svg or "example.dot"
+
 
 if __name__ == "__main__":
-    _info(main())
+    _run_json_cli(_sys.argv[1:])
 
 
 x_cls_make_graphviz_x = GraphvizBuilder
 
-
-__all__ = ["GraphvizBuilder", "x_cls_make_graphviz_x"]
+__all__ = ["GraphvizBuilder", "main_json", "x_cls_make_graphviz_x"]

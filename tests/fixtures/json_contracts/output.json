@@ -1,0 +1,6 @@
+{
+  "status": "success",
+  "dot_source": "digraph G { A -> B [label=\"next\"]; }",
+  "svg_path": "C:\\x_runner_x\\artifacts\\diagram.svg",
+  "report_path": "C:\\x_runner_x\\artifacts\\diagram.json"
+}

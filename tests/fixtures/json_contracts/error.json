@@ -1,0 +1,8 @@
+{
+  "status": "failure",
+  "message": "Graphviz execution failed",
+  "details": {
+    "command": "dot -Tsvg",
+    "exit_code": 1
+  }
+}

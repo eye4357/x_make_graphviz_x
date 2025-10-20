@@ -1,67 +1,63 @@
-# x_make_graphviz_x — Control Room Lab Notes
+# x_make_graphviz_x — Diagram Arsenal
 
-> "I sketch out every cook before I fire the burner. Graphviz is how I show the crew exactly where each molecule flows."
+I engineered this module to turn pipeline schematics into disciplined Graphviz renders. Clusters, edges, attributes, export metadata—every diagram is produced the same way every time so the control center operates on evidence, not sketches.
 
-## Manifesto
-x_make_graphviz_x is my Graphviz DOT builder—clusters, graph attributes, SVG export, the works. It lets me wire diagrams as code so the Road to 0.20.4 teams can see pipelines before a single task executes.
+## Mission Log
+- Compose Graphviz DOT from structured Python helpers without hand-editing strings.
+- Delegate all exports through `x_make_common_x.export_graphviz_to_svg` to capture deterministic SVG paths and metadata.
+- Surface missing binary conditions with explicit warnings so operators fix their toolchain instead of guessing.
+- Feed orchestrator dashboards with ready-made SVG artefacts for Kanban proof.
 
-## 0.20.4 Command Sequence
-Version 0.20.4 locks every DOT render behind the shared exporter rig in `x_make_common_x`. The generator now calls `export_graphviz_to_svg`, captures the `ExportResult` metadata, and hands the orchestrator a deterministic SVG path for Kanban evidence. Missing binaries throw disciplined warnings instead of mystery failures.
+## Instrumentation
+- Python 3.11 or newer.
+- Graphviz binaries (`dot`) available on the executing host.
+- Ruff, Black, MyPy, and Pyright installed when running the QA gauntlet.
+- Optional `graphviz` Python package if you prefer scripted rendering.
 
-## Ingredients
-- Python 3.11+
-- Graphviz system binaries (`dot` on PATH) for SVG rendering
-- Ruff, Black, MyPy, and Pyright to keep helpers in spec
-- Optional: `graphviz` Python package for direct rendering from scripts
-
-## Cook Instructions
+## Operating Procedure
 1. `python -m venv .venv`
-2. `.\.venv\Scripts\Activate.ps1`
+2. `\.venv\Scripts\Activate.ps1`
 3. `python -m pip install --upgrade pip`
 4. `pip install -r requirements.txt`
-5. `python -m x_make_graphviz_x.tests.example` or your own scripts to generate DOT and SVG outputs
+5. Execute `python -m x_make_graphviz_x.tests.example` or your own script to produce DOT + SVG pairs.
 
-## Quality Assurance
+Run outputs land under your working directory with metadata describing export status, runtime, and target paths. File them alongside the Change Control entry that justified the diagram.
+
+## Evidence Checks
 | Check | Command |
 | --- | --- |
-| Formatting sweep | `python -m black .`
-| Lint interrogation | `python -m ruff check .`
-| Type audit | `python -m mypy .`
-| Static contract scan | `python -m pyright`
-| Functional verification | `pytest`
+| Formatting sweep | `python -m black .` |
+| Lint interrogation | `python -m ruff check .` |
+| Type audit | `python -m mypy .` |
+| Static contract scan | `python -m pyright` |
+| Functional verification | `pytest` |
 
-## Distribution Chain
+## System Linkage
 - [Changelog](./CHANGELOG.md)
 - [Road to 0.20.4 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.4/Road%20to%200.20.4%20Engineering%20Proposal.md)
 - [Road to 0.20.3 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.3/Road%20to%200.20.3%20Engineering%20Proposal.md)
 
 ## Reconstitution Drill
-The monthly lab rebuild verifies this renderer from bare metal. Install Graphviz on the sacrificial machine, rerun the exporters, confirm SVG paths match the orchestrator's expectations, and log every binary version. Any wobble in the drill feeds updates into this README and the Change Control docket before production notices.
+During monthly rebuilds I install Graphviz anew, generate diagrams through this module, and compare SVG fingerprints to the baseline. Any divergence—missing fonts, binary drift, file naming—gets documented and corrected before the orchestrator resumes service.
 
-## Cross-Linked Intelligence
-- [x_make_markdown_x](../x_make_markdown_x/README.md) — consumes these diagrams for documentation drops
-- [x_make_mermaid_x](../x_make_mermaid_x/README.md) — the sister renderer for Mermaid schematics
-- [x_0_make_all_x](../x_0_make_all_x/README.md) — orchestrator references these diagrams when choreographing release phases
+## Cross-Referenced Assets
+- [x_make_markdown_x](../x_make_markdown_x/README.md) — consumes generated SVGs in downstream docs.
+- [x_make_mermaid_x](../x_make_mermaid_x/README.md) — sister renderer supplying Mermaid outputs when stakeholders demand them.
+- [x_0_make_all_x](../x_0_make_all_x/README.md) — orchestrator that references these diagrams during release choreography.
 
-## Lab Etiquette
-Check in every new diagram helper with matching tests and update the Change Control index with the pipeline it visualizes. Clarity saves lives—and releases.
+## Conduct Code
+Add tests with every new helper, document the scenario it represents, and log the Change Control entry that warranted the asset. Ambiguity kills releases; diagrams prevent it.
 
-## Sole Architect Profile
-- A single architect sculpts these diagram engines. I translate mental blueprints into DOT primitives, manage exporter wiring, and enforce deterministic outputs without external committees.
-- My background blends systems design, visualization, and automation. The same hands that arrange Kanban evidence also craft the supporting Graphviz DSL and exporter bindings.
+## Sole Architect's Note
+I alone wired this exporter stack—data models, subprocess harnessing, metadata capture, and orchestrator integration. My discipline in visualization comes from designing systems where a diagram is the difference between a repeatable run and a recall.
 
-## Legacy Workforce Costing
-- Old-school delivery would field: 1 visualization-focused engineer, 1 backend Python engineer, 1 DevOps specialist for binary management, and 1 technical writer for diagrams-as-code doctrine.
-- Effort projection: 8-10 engineer-weeks for parity on exporters, helper APIs, and orchestrator integration.
-- Budget envelope: USD 70k–95k, plus sustained maintenance contracts for binary drift and documentation upkeep.
+## Legacy Staffing Estimate
+- Without LLM acceleration, the clone would require: 1 visualization engineer, 1 backend Python engineer, 1 DevOps specialist maintaining binaries, and 1 technical writer.
+- Timeline: 8–10 engineer-weeks to reach feature parity with exporters, tests, and documentation.
+- Budget: USD 70k–95k before sustaining maintenance.
 
-## Techniques and Proficiencies
-- Proven expertise in automation-friendly visualization, deterministic artifact generation, and cross-tool exporter design.
-- Adept at blending infrastructure rigor with storytelling—turning code paths into graph assets that stakeholders and pipelines consume.
-- Sole author who integrates documentation workflows, exporter contracts, and release orchestration without handoffs.
-
-## Stack Cartography
-- Language: Python 3.11+ with dataclasses, pathlib, and subprocess integrations.
-- Toolchain: Graphviz `dot`, shared exporters from `x_make_common_x`, pytest for validation, Ruff/Black/MyPy/Pyright for static correctness.
-- Outputs: SVG artifacts referenced by orchestrator and documentation engines, JSON metadata for Change Control evidence.
-- Supporting Utilities: PowerShell install steps during lab rebuilds, optional Python `graphviz` bindings for scripted generation.
+## Technical Footprint
+- Core: Python 3.11+, dataclasses, pathlib, and subprocess control.
+- Toolchain: Graphviz `dot`, shared exporters from `x_make_common_x`, pytest plus Ruff/Black/MyPy/Pyright for code assurance.
+- Outputs: Deterministic SVG artefacts with JSON metadata for audit trails.
+- Support Scripts: PowerShell bootstrap in lab rebuild procedures, optional `graphviz` binding for programmable pipelines.
