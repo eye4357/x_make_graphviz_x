@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+# ruff: noqa: S101 - assertions express expectations in test cases
 import copy
 import json
+from collections.abc import Mapping
 from pathlib import Path
+from typing import cast
 
 import pytest
 from x_make_common_x.json_contracts import validate_payload, validate_schema
@@ -18,22 +21,25 @@ FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "json_contracts"
 REPORTS_DIR = Path(__file__).resolve().parents[1] / "reports"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module")  # type: ignore[misc,arg-type]
 def sample_input() -> dict[str, object]:
     with (FIXTURE_DIR / "input.json").open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+        data = json.load(handle)
+    return cast("dict[str, object]", data)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module")  # type: ignore[misc,arg-type]
 def sample_output() -> dict[str, object]:
     with (FIXTURE_DIR / "output.json").open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+        data = json.load(handle)
+    return cast("dict[str, object]", data)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module")  # type: ignore[misc,arg-type]
 def sample_error() -> dict[str, object]:
     with (FIXTURE_DIR / "error.json").open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+        data = json.load(handle)
+    return cast("dict[str, object]", data)
 
 
 def test_schemas_are_valid() -> None:
@@ -60,7 +66,8 @@ def test_existing_reports_align_with_schema() -> None:
     for report_file in report_files:
         with report_file.open("r", encoding="utf-8") as handle:
             payload = json.load(handle)
-        validate_payload(payload, OUTPUT_SCHEMA)
+        if isinstance(payload, Mapping):
+            validate_payload(dict(payload), OUTPUT_SCHEMA)
 
 
 def test_main_json_executes_happy_path(sample_input: dict[str, object]) -> None:

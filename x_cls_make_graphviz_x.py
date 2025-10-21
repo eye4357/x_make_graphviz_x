@@ -30,7 +30,7 @@ from x_make_common_x.json_contracts import validate_payload
 from x_make_graphviz_x.json_contracts import INPUT_SCHEMA, OUTPUT_SCHEMA
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Iterable
 
 AttrValue = str | int | float | bool | None
 AttrMap = dict[str, AttrValue]
@@ -335,6 +335,11 @@ class GraphvizBuilder:
         body = "\n  ".join(lines)
         return f"{kind} {name} {{\n  {body}\n}}\n"
 
+    def dot_source(self) -> str:
+        """Return the generated DOT source."""
+
+        return self._dot_source()
+
     # Render
 
     def render(
@@ -557,7 +562,7 @@ def main_json(
         svg_result = builder.to_svg(str(target))
         svg_path = svg_result if svg_result else None
 
-    dot_source = builder._dot_source()
+    dot_source = builder.dot_source()
     result: dict[str, object] = {
         "status": "success",
         "dot_source": dot_source,
