@@ -482,7 +482,9 @@ def _normalize_edges(
         )
 
 
-def _failure_payload(message: str, *, details: Mapping[str, object] | None = None) -> dict[str, object]:
+def _failure_payload(
+    message: str, *, details: Mapping[str, object] | None = None
+) -> dict[str, object]:
     payload: dict[str, object] = {
         "status": "failure",
         "message": message,
@@ -515,7 +517,9 @@ def main_json(
     parameters = cast("Mapping[str, object]", parameters_obj)
 
     directed_value = parameters.get("directed", True)
-    directed = bool(directed_value) if not isinstance(directed_value, bool) else directed_value
+    directed = (
+        bool(directed_value) if not isinstance(directed_value, bool) else directed_value
+    )
     builder = GraphvizBuilder(ctx=ctx, directed=directed)
 
     engine_obj = parameters.get("engine")
@@ -541,8 +545,14 @@ def main_json(
         export_mapping = cast("Mapping[str, object]", export_obj)
         filename_obj = export_mapping.get("filename")
         directory_obj = export_mapping.get("directory")
-        filename = filename_obj if isinstance(filename_obj, str) and filename_obj else "graph"
-        base = Path(directory_obj) if isinstance(directory_obj, str) and directory_obj else Path()
+        filename = (
+            filename_obj if isinstance(filename_obj, str) and filename_obj else "graph"
+        )
+        base = (
+            Path(directory_obj)
+            if isinstance(directory_obj, str) and directory_obj
+            else Path()
+        )
         target = base / filename
         svg_result = builder.to_svg(str(target))
         svg_path = svg_result if svg_result else None
@@ -578,7 +588,9 @@ def _load_json_payload(file_path: str | None) -> Mapping[str, object]:
 
 def _run_json_cli(args: Sequence[str]) -> None:
     parser = argparse.ArgumentParser(description="x_make_graphviz_x JSON runner")
-    parser.add_argument("--json", action="store_true", help="Read JSON payload from stdin")
+    parser.add_argument(
+        "--json", action="store_true", help="Read JSON payload from stdin"
+    )
     parser.add_argument("--json-file", type=str, help="Path to JSON payload file")
     parsed = parser.parse_args(args)
 

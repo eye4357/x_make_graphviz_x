@@ -72,7 +72,9 @@ def test_main_json_executes_happy_path(sample_input: dict[str, object]) -> None:
     assert "dot_source" in result
 
 
-def test_main_json_returns_error_for_invalid_payload(sample_input: dict[str, object]) -> None:
+def test_main_json_returns_error_for_invalid_payload(
+    sample_input: dict[str, object],
+) -> None:
     invalid = copy.deepcopy(sample_input)
     parameters = invalid.setdefault("parameters", {})
     if isinstance(parameters, dict):

@@ -7,10 +7,10 @@ _NODE_SCHEMA: dict[str, object] = {
     "properties": {
         "id": {"type": "string"},
         "label": {"type": ["string", "null"]},
-        "attributes": {"type": "object"}
+        "attributes": {"type": "object"},
     },
     "required": ["id"],
-    "additionalProperties": True
+    "additionalProperties": True,
 }
 
 _EDGE_SCHEMA: dict[str, object] = {
@@ -18,10 +18,10 @@ _EDGE_SCHEMA: dict[str, object] = {
     "properties": {
         "source": {"type": "string"},
         "target": {"type": "string"},
-        "attributes": {"type": "object"}
+        "attributes": {"type": "object"},
     },
     "required": ["source", "target"],
-    "additionalProperties": True
+    "additionalProperties": True,
 }
 
 INPUT_SCHEMA: dict[str, object] = {
@@ -36,32 +36,25 @@ INPUT_SCHEMA: dict[str, object] = {
                 "directed": {"type": "boolean"},
                 "engine": {"type": ["string", "null"], "minLength": 1},
                 "graph_attributes": {"type": "object"},
-                "nodes": {
-                    "type": "array",
-                    "items": _NODE_SCHEMA,
-                    "minItems": 1
-                },
-                "edges": {
-                    "type": "array",
-                    "items": _EDGE_SCHEMA
-                },
+                "nodes": {"type": "array", "items": _NODE_SCHEMA, "minItems": 1},
+                "edges": {"type": "array", "items": _EDGE_SCHEMA},
                 "export": {
                     "type": "object",
                     "properties": {
                         "enable": {"type": "boolean"},
                         "filename": {"type": ["string", "null"]},
-                        "directory": {"type": ["string", "null"]}
+                        "directory": {"type": ["string", "null"]},
                     },
                     "required": ["enable"],
-                    "additionalProperties": False
-                }
+                    "additionalProperties": False,
+                },
             },
             "required": ["nodes", "edges"],
-            "additionalProperties": False
-        }
+            "additionalProperties": False,
+        },
     },
     "required": ["command", "parameters"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 
 OUTPUT_SCHEMA: dict[str, object] = {
@@ -72,10 +65,10 @@ OUTPUT_SCHEMA: dict[str, object] = {
         "status": {"enum": ["success", "failure"]},
         "dot_source": {"type": "string"},
         "svg_path": {"type": ["string", "null"]},
-        "report_path": {"type": ["string", "null"]}
+        "report_path": {"type": ["string", "null"]},
     },
     "required": ["status", "dot_source"],
-    "additionalProperties": True
+    "additionalProperties": True,
 }
 
 ERROR_SCHEMA: dict[str, object] = {
@@ -85,10 +78,10 @@ ERROR_SCHEMA: dict[str, object] = {
     "properties": {
         "status": {"const": "failure"},
         "message": {"type": "string"},
-        "details": {"type": "object"}
+        "details": {"type": "object"},
     },
     "required": ["status", "message"],
-    "additionalProperties": True
+    "additionalProperties": True,
 }
 
 __all__ = ["ERROR_SCHEMA", "INPUT_SCHEMA", "OUTPUT_SCHEMA"]
