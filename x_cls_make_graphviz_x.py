@@ -16,10 +16,11 @@ import logging
 import sys as _sys
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import IO, TYPE_CHECKING, Protocol, cast
 
-from jsonschema import ValidationError  # type: ignore[import-untyped]
+from jsonschema import ValidationError
 from x_make_common_x.exporters import (
     CommandRunner,
     ExportResult,
@@ -47,6 +48,12 @@ class _GraphvizSourceFactory(Protocol):
 
 
 _LOGGER = logging.getLogger("x_make")
+
+
+@dataclass(slots=True)
+class _JsonCLIArgs:
+    use_stdin: bool
+    json_file: str | None
 
 
 def _info(*args: object) -> None:
@@ -585,10 +592,17 @@ def main_json(
 
 
 def _load_json_payload(file_path: str | None) -> Mapping[str, object]:
+    def _load(handle: IO[str]) -> Mapping[str, object]:
+        raw: object = json.load(handle)
+        if not isinstance(raw, dict):
+            message = "JSON payload must be an object"
+            raise SystemExit(message)
+        return cast("dict[str, object]", raw)
+
     if file_path:
         with Path(file_path).open("r", encoding="utf-8") as handle:
-            return cast("Mapping[str, object]", json.load(handle))
-    return cast("Mapping[str, object]", json.load(_sys.stdin))
+            return _load(handle)
+    return _load(_sys.stdin)
 
 
 def _run_json_cli(args: Sequence[str]) -> None:
@@ -597,14 +611,24 @@ def _run_json_cli(args: Sequence[str]) -> None:
         "--json", action="store_true", help="Read JSON payload from stdin"
     )
     parser.add_argument("--json-file", type=str, help="Path to JSON payload file")
-    parsed = parser.parse_args(args)
+    namespace = parser.parse_args(args)
+    json_flag_obj = cast("object", getattr(namespace, "json", False))
+    json_flag = bool(json_flag_obj)
+    json_file_raw = cast("object", getattr(namespace, "json_file", None))
+    json_path = json_file_raw if isinstance(json_file_raw, str) else None
+    parsed = _JsonCLIArgs(use_stdin=json_flag, json_file=json_path)
 
-    if not (parsed.json or parsed.json_file):
+    if not (parsed.use_stdin or parsed.json_file):
         parser.error("JSON input required. Use --json for stdin or --json-file <path>.")
 
     payload = _load_json_payload(parsed.json_file if parsed.json_file else None)
     result = main_json(payload)
-    json.dump(result, _sys.stdout, indent=2)
+    rendered_obj: object = json.dumps(result, indent=2)
+    if not isinstance(rendered_obj, str):  # pragma: no cover - defensive
+        message = "JSON rendering failed"
+        raise SystemExit(message)
+    rendered: str = rendered_obj
+    _sys.stdout.write(rendered)
     _sys.stdout.write("\n")
 
 
@@ -619,8 +643,6 @@ def main() -> str:
     # Generate artifacts: .dot always, .svg when possible
     g.save_dot("example.dot")
     svg = g.to_svg("example")
-    return svg or "example.dot"
-
     return svg or "example.dot"
 
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 # ruff: noqa: S101 - assertions express expectations in test cases
 import copy
 import json
-from collections.abc import Mapping
 from pathlib import Path
 from typing import cast
 
@@ -21,25 +20,26 @@ FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "json_contracts"
 REPORTS_DIR = Path(__file__).resolve().parents[1] / "reports"
 
 
-@pytest.fixture(scope="module")  # type: ignore[misc,arg-type]
-def sample_input() -> dict[str, object]:
-    with (FIXTURE_DIR / "input.json").open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    return cast("dict[str, object]", data)
+def _load_json_object(path: Path) -> dict[str, object]:
+    with path.open("r", encoding="utf-8") as handle:
+        raw: object = json.load(handle)
+    if not isinstance(raw, dict):
+        message = f"Fixture {path} must contain a JSON object"
+        raise TypeError(message)
+    return cast("dict[str, object]", raw)
 
 
-@pytest.fixture(scope="module")  # type: ignore[misc,arg-type]
-def sample_output() -> dict[str, object]:
-    with (FIXTURE_DIR / "output.json").open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    return cast("dict[str, object]", data)
+def _load_report_payload(path: Path) -> dict[str, object] | None:
+    with path.open("r", encoding="utf-8") as handle:
+        raw: object = json.load(handle)
+    if isinstance(raw, dict):
+        return cast("dict[str, object]", raw)
+    return None
 
 
-@pytest.fixture(scope="module")  # type: ignore[misc,arg-type]
-def sample_error() -> dict[str, object]:
-    with (FIXTURE_DIR / "error.json").open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    return cast("dict[str, object]", data)
+SAMPLE_INPUT = _load_json_object(FIXTURE_DIR / "input.json")
+SAMPLE_OUTPUT = _load_json_object(FIXTURE_DIR / "output.json")
+SAMPLE_ERROR = _load_json_object(FIXTURE_DIR / "error.json")
 
 
 def test_schemas_are_valid() -> None:
@@ -47,14 +47,10 @@ def test_schemas_are_valid() -> None:
         validate_schema(schema)
 
 
-def test_sample_payloads_match_schema(
-    sample_input: dict[str, object],
-    sample_output: dict[str, object],
-    sample_error: dict[str, object],
-) -> None:
-    validate_payload(sample_input, INPUT_SCHEMA)
-    validate_payload(sample_output, OUTPUT_SCHEMA)
-    validate_payload(sample_error, ERROR_SCHEMA)
+def test_sample_payloads_match_schema() -> None:
+    validate_payload(SAMPLE_INPUT, INPUT_SCHEMA)
+    validate_payload(SAMPLE_OUTPUT, OUTPUT_SCHEMA)
+    validate_payload(SAMPLE_ERROR, ERROR_SCHEMA)
 
 
 def test_existing_reports_align_with_schema() -> None:
@@ -64,14 +60,13 @@ def test_existing_reports_align_with_schema() -> None:
     if not report_files:
         pytest.skip("no graphviz run reports to validate")
     for report_file in report_files:
-        with report_file.open("r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-        if isinstance(payload, Mapping):
-            validate_payload(dict(payload), OUTPUT_SCHEMA)
+        payload = _load_report_payload(report_file)
+        if payload is not None:
+            validate_payload(payload, OUTPUT_SCHEMA)
 
 
-def test_main_json_executes_happy_path(sample_input: dict[str, object]) -> None:
-    result = main_json(sample_input)
+def test_main_json_executes_happy_path() -> None:
+    result = main_json(SAMPLE_INPUT)
     validate_payload(result, OUTPUT_SCHEMA)
     status_value = result.get("status")
     assert isinstance(status_value, str)
@@ -79,13 +74,13 @@ def test_main_json_executes_happy_path(sample_input: dict[str, object]) -> None:
     assert "dot_source" in result
 
 
-def test_main_json_returns_error_for_invalid_payload(
-    sample_input: dict[str, object],
-) -> None:
-    invalid = copy.deepcopy(sample_input)
-    parameters = invalid.setdefault("parameters", {})
+def test_main_json_returns_error_for_invalid_payload() -> None:
+    invalid = copy.deepcopy(SAMPLE_INPUT)
+    parameters = invalid.get("parameters")
     if isinstance(parameters, dict):
         parameters.pop("nodes", None)
+    else:
+        invalid["parameters"] = dict[str, object]()
     result = main_json(invalid)
     validate_payload(result, ERROR_SCHEMA)
     status_value = result.get("status")
