@@ -32,18 +32,8 @@ Run outputs land under your working directory with metadata describing export st
 | Static contract scan | `python -m pyright` |
 | Functional verification | `pytest` |
 
-## System Linkage
-- [Changelog](./CHANGELOG.md)
-- [Road to 0.20.4 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.4/Road%20to%200.20.4%20Engineering%20Proposal.md)
-- [Road to 0.20.3 Engineering Proposal](../x_0_make_all_x/Change%20Control/0.20.3/Road%20to%200.20.3%20Engineering%20Proposal.md)
-
 ## Reconstitution Drill
 During monthly rebuilds I install Graphviz anew, generate diagrams through this module, and compare SVG fingerprints to the baseline. Any divergence—missing fonts, binary drift, file naming—gets documented and corrected before the orchestrator resumes service.
-
-## Cross-Referenced Assets
-- [x_make_markdown_x](../x_make_markdown_x/README.md) — consumes generated SVGs in downstream docs.
-- [x_make_mermaid_x](../x_make_mermaid_x/README.md) — sister renderer supplying Mermaid outputs when stakeholders demand them.
-- [x_0_make_all_x](../x_0_make_all_x/README.md) — orchestrator that references these diagrams during release choreography.
 
 ## Conduct Code
 Add tests with every new helper, document the scenario it represents, and log the Change Control entry that warranted the asset. Ambiguity kills releases; diagrams prevent it.
