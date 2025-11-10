@@ -21,13 +21,13 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, Protocol, cast
 
 from jsonschema import ValidationError
+
 from x_make_common_x.exporters import (
     CommandRunner,
     ExportResult,
     export_graphviz_to_svg,
 )
 from x_make_common_x.json_contracts import validate_payload
-
 from x_make_graphviz_x.json_contracts import INPUT_SCHEMA, OUTPUT_SCHEMA
 
 if TYPE_CHECKING:
@@ -532,7 +532,15 @@ def main_json(
     directed = (
         bool(directed_value) if not isinstance(directed_value, bool) else directed_value
     )
-    builder = GraphvizBuilder(ctx=ctx, directed=directed)
+
+    graphviz_path_obj = parameters.get("graphviz_path")
+    dot_binary: str | None = None
+    if isinstance(graphviz_path_obj, (str, Path)):
+        candidate = str(graphviz_path_obj).strip()
+        if candidate:
+            dot_binary = candidate
+
+    builder = GraphvizBuilder(ctx=ctx, directed=directed, dot_binary=dot_binary)
 
     engine_obj = parameters.get("engine")
     if isinstance(engine_obj, str) and engine_obj:
@@ -553,6 +561,7 @@ def main_json(
 
     export_obj = parameters.get("export")
     svg_path: str | None = None
+    export_metadata: dict[str, object] | None = None
     if isinstance(export_obj, Mapping) and export_obj.get("enable"):
         export_mapping = cast("Mapping[str, object]", export_obj)
         filename_obj = export_mapping.get("filename")
@@ -568,6 +577,9 @@ def main_json(
         target = base / filename
         svg_result = builder.to_svg(str(target))
         svg_path = svg_result if svg_result else None
+        last_export = builder.get_last_export_result()
+        if last_export is not None:
+            export_metadata = last_export.to_metadata()
 
     dot_source = builder.dot_source()
     result: dict[str, object] = {
@@ -576,6 +588,8 @@ def main_json(
         "svg_path": svg_path,
         "report_path": None,
     }
+    if export_metadata is not None:
+        result["export_result"] = export_metadata
 
     try:
         validate_payload(result, OUTPUT_SCHEMA)

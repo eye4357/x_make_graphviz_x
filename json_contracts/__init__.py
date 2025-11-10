@@ -41,6 +41,7 @@ INPUT_SCHEMA: dict[str, object] = {
                 "graph_attributes": {"type": "object"},
                 "nodes": {"type": "array", "items": _NODE_SCHEMA, "minItems": 1},
                 "edges": {"type": "array", "items": _EDGE_SCHEMA},
+                "graphviz_path": {"type": ["string", "null"], "minLength": 1},
                 "export": {
                     "type": "object",
                     "properties": {
