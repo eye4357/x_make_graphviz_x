@@ -506,13 +506,7 @@ def _failure_payload(
     return payload
 
 
-def main_json(
-    payload: Mapping[str, object],
-    *,
-    ctx: object | None = None,
-) -> dict[str, object]:
-    """Execute the Graphviz builder using the JSON contract."""
-
+def _validate_input_schema(payload: Mapping[str, object]) -> dict[str, object] | None:
     try:
         validate_payload(payload, INPUT_SCHEMA)
     except ValidationError as exc:
@@ -524,24 +518,28 @@ def main_json(
                 "schema_path": [str(part) for part in exc.schema_path],
             },
         )
+    return None
 
-    parameters_obj = payload.get("parameters", {})
-    parameters = cast("Mapping[str, object]", parameters_obj)
 
-    directed_value = parameters.get("directed", True)
-    directed = (
-        bool(directed_value) if not isinstance(directed_value, bool) else directed_value
-    )
+def _validate_output_schema(result: Mapping[str, object]) -> dict[str, object] | None:
+    try:
+        validate_payload(result, OUTPUT_SCHEMA)
+    except ValidationError as exc:
+        return _failure_payload(
+            "generated output failed schema validation",
+            details={
+                "error": exc.message,
+                "path": [str(part) for part in exc.path],
+                "schema_path": [str(part) for part in exc.schema_path],
+            },
+        )
+    return None
 
-    graphviz_path_obj = parameters.get("graphviz_path")
-    dot_binary: str | None = None
-    if isinstance(graphviz_path_obj, (str, Path)):
-        candidate = str(graphviz_path_obj).strip()
-        if candidate:
-            dot_binary = candidate
 
-    builder = GraphvizBuilder(ctx=ctx, directed=directed, dot_binary=dot_binary)
-
+def _ensure_builder_configuration(
+    builder: GraphvizBuilder,
+    parameters: Mapping[str, object],
+) -> None:
     engine_obj = parameters.get("engine")
     if isinstance(engine_obj, str) and engine_obj:
         builder.engine(engine_obj)
@@ -559,27 +557,72 @@ def main_json(
     if isinstance(edges_obj, Sequence):
         _normalize_edges(builder, edges_obj)
 
+
+def _builder_from_parameters(
+    parameters: Mapping[str, object],
+    *,
+    ctx: object | None,
+) -> GraphvizBuilder:
+    directed_value = parameters.get("directed", True)
+    directed = (
+        bool(directed_value) if not isinstance(directed_value, bool) else directed_value
+    )
+
+    graphviz_path_obj = parameters.get("graphviz_path")
+    dot_binary: str | None = None
+    if isinstance(graphviz_path_obj, (str, Path)):
+        candidate = str(graphviz_path_obj).strip()
+        if candidate:
+            dot_binary = candidate
+
+    builder = GraphvizBuilder(ctx=ctx, directed=directed, dot_binary=dot_binary)
+    _ensure_builder_configuration(builder, parameters)
+    return builder
+
+
+def _handle_export(
+    builder: GraphvizBuilder,
+    export_obj: object,
+) -> tuple[str | None, dict[str, object] | None]:
+    if not isinstance(export_obj, Mapping) or not export_obj.get("enable"):
+        return None, None
+
+    export_mapping = cast("Mapping[str, object]", export_obj)
+    filename_obj = export_mapping.get("filename")
+    directory_obj = export_mapping.get("directory")
+    filename = (
+        filename_obj if isinstance(filename_obj, str) and filename_obj else "graph"
+    )
+    if isinstance(directory_obj, str) and directory_obj:
+        base = Path(directory_obj)
+    else:
+        base = Path()
+    target = base / filename
+    svg_result = builder.to_svg(str(target))
+    svg_path = svg_result if svg_result else None
+    last_export = builder.get_last_export_result()
+    export_metadata = last_export.to_metadata() if last_export is not None else None
+    return svg_path, export_metadata
+
+
+def main_json(
+    payload: Mapping[str, object],
+    *,
+    ctx: object | None = None,
+) -> dict[str, object]:
+    """Execute the Graphviz builder using the JSON contract."""
+
+    schema_error = _validate_input_schema(payload)
+    if schema_error is not None:
+        return schema_error
+
+    parameters_obj = payload.get("parameters", {})
+    parameters = cast("Mapping[str, object]", parameters_obj)
+
+    builder = _builder_from_parameters(parameters, ctx=ctx)
+
     export_obj = parameters.get("export")
-    svg_path: str | None = None
-    export_metadata: dict[str, object] | None = None
-    if isinstance(export_obj, Mapping) and export_obj.get("enable"):
-        export_mapping = cast("Mapping[str, object]", export_obj)
-        filename_obj = export_mapping.get("filename")
-        directory_obj = export_mapping.get("directory")
-        filename = (
-            filename_obj if isinstance(filename_obj, str) and filename_obj else "graph"
-        )
-        base = (
-            Path(directory_obj)
-            if isinstance(directory_obj, str) and directory_obj
-            else Path()
-        )
-        target = base / filename
-        svg_result = builder.to_svg(str(target))
-        svg_path = svg_result if svg_result else None
-        last_export = builder.get_last_export_result()
-        if last_export is not None:
-            export_metadata = last_export.to_metadata()
+    svg_path, export_metadata = _handle_export(builder, export_obj)
 
     dot_source = builder.dot_source()
     result: dict[str, object] = {
@@ -591,18 +634,8 @@ def main_json(
     if export_metadata is not None:
         result["export_result"] = export_metadata
 
-    try:
-        validate_payload(result, OUTPUT_SCHEMA)
-    except ValidationError as exc:
-        return _failure_payload(
-            "generated output failed schema validation",
-            details={
-                "error": exc.message,
-                "path": [str(part) for part in exc.path],
-                "schema_path": [str(part) for part in exc.schema_path],
-            },
-        )
-    return result
+    output_error = _validate_output_schema(result)
+    return output_error if output_error is not None else result
 
 
 def _load_json_payload(file_path: str | None) -> Mapping[str, object]:
