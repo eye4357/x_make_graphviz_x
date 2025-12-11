@@ -1,0 +1,109 @@
+{
+  "incident": {
+    "title": "Telemetry Vector Drift",
+    "slug": "telemetry-vector",
+    "summary": "North-star latency dashboards showed week-old data because the ingestion lambda pinned to an outdated schema.",
+    "effect": "Dashboards stale (novel telemetry ignored)",
+    "context": {
+      "Trigger": "Pager triggered after OPS noticed flatline despite live load",
+      "Blast Radius": "Observability consumers in Balance Punching program",
+      "Detection": "Manual comparison between Grafana and raw trace exports",
+      "Team": "Telemetry Vector + Platform Sensors"
+    }
+  },
+  "fishbone": {
+    "effect": "Dashboards stale (novel telemetry ignored)",
+    "branches": [
+      {
+        "title": "Ingestion",
+        "description": "Lambda pinned to v2 schema",
+        "sub_causes": [
+          "Schema version flag never rolled",
+          "Blue/green deploy stuck on canary"
+        ]
+      },
+      {
+        "title": "Transformation",
+        "description": "Pipelines drop unknown fields",
+        "sub_causes": [
+          "Spark job strict mode enabled",
+          "No histogram migration test"
+        ]
+      },
+      {
+        "title": "Storage",
+        "description": "TSDB shard lag",
+        "sub_causes": [
+          "Cold shard rebuild in progress",
+          "Retention settings force compaction"
+        ]
+      },
+      {
+        "title": "Dashboards",
+        "description": "Widget caching",
+        "sub_causes": [
+          "Panel cache TTL = 24h",
+          "Alert queries reuse cached series"
+        ]
+      },
+      {
+        "title": "Process",
+        "description": "No schema canary gate",
+        "sub_causes": [
+          "Runbooks omit schema verification",
+          "Release checklist lacks Grafana diff"
+        ]
+      }
+    ]
+  },
+  "phase_flow": {
+    "phases": [
+      {
+        "title": "Phase A — Schema Confidence",
+        "goal": "Verify all ingestors speak latest shape",
+        "exit": "Lambda + Spark share v3 contract",
+        "tactics": "Add schema registry gate, promote feature flag"
+      },
+      {
+        "title": "Phase B — Storage Freshness",
+        "goal": "Remove shard lag on telemetry TSDB",
+        "exit": "p95 ingest-to-query < 90s",
+        "tactics": "Parallel shard rebuild + warm caches"
+      },
+      {
+        "title": "Phase C — Dashboard Reality",
+        "goal": "Ensure widgets show live data",
+        "exit": "Cache TTL <= 5m and alerts bypass cache",
+        "tactics": "Invalidate caches, add bypass parameter"
+      }
+    ]
+  },
+  "backlog": [
+    {
+      "item": "Add schema registry check to telemetry deploy",
+      "owner": "Telemetry Vector",
+      "status": "ready"
+    },
+    {
+      "item": "Shorten Grafana panel TTL and document override",
+      "owner": "Platform Sensors",
+      "status": "todo"
+    }
+  ],
+  "actions": [
+    {
+      "item": "Migrate ingestion lambda to schema v3",
+      "owner": "Telemetry Vector",
+      "status": "in-progress",
+      "eta": "2025-12-12",
+      "notes": "Flag flip pending final bake"
+    },
+    {
+      "item": "Codify schema diff validation in CI",
+      "owner": "Automation Guild",
+      "status": "planned",
+      "eta": "2025-12-19",
+      "notes": "Requires registry API access"
+    }
+  ]
+}

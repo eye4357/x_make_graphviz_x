@@ -1,0 +1,135 @@
+{
+  "incident": {
+    "title": "Switcharoo Digest Regression",
+    "slug": "switcharoo-ishikawa",
+    "summary": "December run shipped the November digest snapshot because evidence inputs never refreshed before packaging.",
+    "effect": "Digest stale (Nov snapshot after Dec run)",
+    "context": {
+      "Trigger": "Post-release QA flagged November timestamps in Dec 02 digest",
+      "Blast Radius": "Evidence consumers under Change Control 0.20.15",
+      "Detection": "Manual review of markdown attachments",
+      "Team": "Scriba Machina + Automation Guild"
+    }
+  },
+  "fishbone": {
+    "effect": "Digest stale (Nov snapshot after Dec run)",
+    "branches": [
+      {
+        "title": "Data Inputs",
+        "description": "Context payloads frozen",
+        "sub_causes": [
+          "visitor_failures_context.json cached",
+          "make_all_summary.json not regenerated"
+        ]
+      },
+      {
+        "title": "Template Logic",
+        "description": "Static summary text",
+        "sub_causes": [
+          "Template embeds Nov strings",
+          "No timestamp assertion"
+        ]
+      },
+      {
+        "title": "Cache / Build",
+        "description": "Old artifacts copied",
+        "sub_causes": [
+          "Fast-path skip resets",
+          "Artifact mirror overwrites fresh file"
+        ]
+      },
+      {
+        "title": "Filesystem / Clock",
+        "description": "Multiple digests, skew",
+        "sub_causes": [
+          "UTC vs local confusion",
+          "Parallel copies under evidence/"
+        ]
+      },
+      {
+        "title": "Tooling",
+        "description": "Switcharoo CLI bypass",
+        "sub_causes": [
+          "run_make_all_switcharoo omits clean step",
+          "Factory CLI reuses process state"
+        ]
+      },
+      {
+        "title": "Process",
+        "description": "No checksum gate",
+        "sub_causes": [
+          "Digest checksum gate missing",
+          "Manual edits bypass review"
+        ]
+      }
+    ]
+  },
+  "phase_flow": {
+    "phases": [
+      {
+        "title": "Phase A — Evidence Integrity",
+        "goal": "Rebuild all JSON context inputs",
+        "exit": "Fresh context digests committed",
+        "tactics": "Force regeneration, checksum compare"
+      },
+      {
+        "title": "Phase B — Template Validation",
+        "goal": "Eliminate static text drift",
+        "exit": "Templated timestamps bound to build clock",
+        "tactics": "Add assertions, move strings to data"
+      },
+      {
+        "title": "Phase C — Cache Hygiene",
+        "goal": "Prevent stale artifact reuse",
+        "exit": "Switcharoo CLI cleans before render",
+        "tactics": "Hard clean, unique release dirs"
+      },
+      {
+        "title": "Phase D — Release Safeguards",
+        "goal": "Stop drift before publish",
+        "exit": "Checksum gate in Change Control",
+        "tactics": "Add digest hash + reviewer ack"
+      }
+    ]
+  },
+  "backlog": [
+    {
+      "item": "Add digest checksum gate to Change Control",
+      "owner": "Release Ops",
+      "status": "ready"
+    },
+    {
+      "item": "Teach run_make_all_switcharoo to clean build dirs",
+      "owner": "Automation Guild",
+      "status": "in-progress"
+    },
+    {
+      "item": "Embed timestamp assertions inside scriba templates",
+      "owner": "Scriba Machina",
+      "status": "todo"
+    }
+  ],
+  "actions": [
+    {
+      "item": "Wire checksum gate into Change Control checklist",
+      "owner": "Release Ops",
+      "status": "in-progress",
+      "eta": "2025-12-10",
+      "notes": "Pending reviewer sign-off format"
+    },
+    {
+      "item": "Extend run_make_all_switcharoo with --force-clean",
+      "owner": "Automation Guild",
+      "status": "ready",
+      "eta": "2025-12-11",
+      "notes": "CLI flag behind feature toggle"
+    },
+    {
+      "item": "Add timestamp assertions to scriba templates",
+      "owner": "Scriba Machina",
+      "status": "planned",
+      "eta": "2025-12-15",
+      "notes": "Needs template unit harness"
+    }
+  ]
+}

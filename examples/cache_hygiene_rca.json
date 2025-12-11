@@ -1,0 +1,101 @@
+{
+  "incident": {
+    "title": "Cache Hygiene Regression",
+    "slug": "cache-hygiene",
+    "summary": "Hotfix pipeline shipped binaries without the latest secrets because the staging cache reused an expired vault token.",
+    "effect": "Staging binaries missing rotated secrets",
+    "context": {
+      "Trigger": "Post-deploy smoke test failed secret handshake",
+      "Blast Radius": "x_legatus_officina_automatarum_x hotfix line",
+      "Detection": "Vault audit log flagged denied read",
+      "Team": "Release Ops + Security Engineering"
+    }
+  },
+  "fishbone": {
+    "effect": "Staging binaries missing rotated secrets",
+    "branches": [
+      {
+        "title": "Vault Access",
+        "description": "Token expired mid-build",
+        "sub_causes": [
+          "Cache warms token once per day",
+          "No auto-renew for hotfix lane"
+        ]
+      },
+      {
+        "title": "Build Farm",
+        "description": "Layer reuse",
+        "sub_causes": [
+          "Docker cache reused secretless layer",
+          "Layer pin ignored cache-bust flag"
+        ]
+      },
+      {
+        "title": "Automation",
+        "description": "Hotfix shortcut",
+        "sub_causes": [
+          "`forceit.py` skips clean build",
+          "Env var toggles not documented"
+        ]
+      },
+      {
+        "title": "Process",
+        "description": "No secret freshness gate",
+        "sub_causes": [
+          "Checklist lacks vault validation",
+          "Reviewer cannot see token TTL"
+        ]
+      }
+    ]
+  },
+  "phase_flow": {
+    "phases": [
+      {
+        "title": "Phase A — Token Health",
+        "goal": "Guarantee renewable tokens per build",
+        "exit": "Hotfix lane auto-renews before fetch",
+        "tactics": "Adopt short-lived app role + renew hook"
+      },
+      {
+        "title": "Phase B — Cache Discipline",
+        "goal": "Invalidate build layers when secrets rotate",
+        "exit": "Cache-bust annotation derived from secret hash",
+        "tactics": "Inject vault hash into image labels"
+      },
+      {
+        "title": "Phase C — Release Controls",
+        "goal": "Prevent publish if secret fetch fails",
+        "exit": "Pipeline blocks without fresh vault timestamp",
+        "tactics": "Add gating step + reviewer attestation"
+      }
+    ]
+  },
+  "backlog": [
+    {
+      "item": "Teach forceit.py to request renewable token",
+      "owner": "Release Ops",
+      "status": "in-progress"
+    },
+    {
+      "item": "Emit secret hash metadata into build artifacts",
+      "owner": "Security Engineering",
+      "status": "planned"
+    }
+  ],
+  "actions": [
+    {
+      "item": "Document hotfix cache-bust switch",
+      "owner": "Automation Guild",
+      "status": "ready",
+      "eta": "2025-12-11",
+      "notes": "Draft shared with Release Ops"
+    },
+    {
+      "item": "Add vault freshness check to checklist",
+      "owner": "Security Engineering",
+      "status": "todo",
+      "eta": "2025-12-15",
+      "notes": "Requires reviewer UI update"
+    }
+  ]
+}
