@@ -12,6 +12,15 @@ from x_make_graphviz_x import GraphvizBuilder
 AttrValue = str | int | float | bool | None
 
 
+def _pop_port(attrs: dict[str, AttrValue], key: str) -> str | None:
+    value = attrs.pop(key, None)
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
 @dataclass(frozen=True)
 class NodeSpec:
     node_id: str
@@ -46,13 +55,19 @@ def _coerce_dot_binary(dot_binary: Path | str | None) -> str | None:
     return str(Path(dot_binary))
 
 
-def _apply_rank_groups(builder: GraphvizBuilder, groups: Sequence[Sequence[str]]) -> None:
+def _apply_rank_groups(
+    builder: GraphvizBuilder, groups: Sequence[Sequence[str]]
+) -> None:
     for group in groups:
         builder.rank(tuple(group))
 
 
-def _build_diagram(spec: DiagramSpec, *, dot_binary: Path | str | None = None) -> GraphvizBuilder:
-    builder = GraphvizBuilder(directed=spec.directed, dot_binary=_coerce_dot_binary(dot_binary))
+def _build_diagram(
+    spec: DiagramSpec, *, dot_binary: Path | str | None = None
+) -> GraphvizBuilder:
+    builder = GraphvizBuilder(
+        directed=spec.directed, dot_binary=_coerce_dot_binary(dot_binary)
+    )
     if spec.graph_attrs:
         builder.graph_attr(**spec.graph_attrs)
     if spec.node_defaults:
@@ -63,7 +78,17 @@ def _build_diagram(spec: DiagramSpec, *, dot_binary: Path | str | None = None) -
         builder.add_node(node.node_id, label=node.label, **node.attributes)
     _apply_rank_groups(builder, spec.rank_groups)
     for edge in spec.edges:
-        builder.add_edge(edge.source, edge.target, label=edge.label, **edge.attributes)
+        attrs = dict(edge.attributes)
+        from_port = _pop_port(attrs, "from_port")
+        to_port = _pop_port(attrs, "to_port")
+        builder.add_edge(
+            edge.source,
+            edge.target,
+            label=edge.label,
+            from_port=from_port,
+            to_port=to_port,
+            **attrs,
+        )
     return builder
 
 
@@ -205,10 +230,19 @@ def _emit_markdown(specs: Iterable[tuple[DiagramSpec, str]]) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Switcharoo Ishikawa diagram factory")
-    parser.add_argument("--output-dir", type=Path, help="Directory for .dot/.svg artifacts")
-    parser.add_argument("--subdir", type=str, default=None, help="Optional subdirectory under output dir")
+    parser.add_argument(
+        "--output-dir", type=Path, help="Directory for .dot/.svg artifacts"
+    )
+    parser.add_argument(
+        "--subdir",
+        type=str,
+        default=None,
+        help="Optional subdirectory under output dir",
+    )
     parser.add_argument("--dot-binary", type=Path, help="Explicit dot executable path")
-    parser.add_argument("--emit-markdown", action="store_true", help="Print fenced graphviz blocks")
+    parser.add_argument(
+        "--emit-markdown", action="store_true", help="Print fenced graphviz blocks"
+    )
     parser.add_argument(
         "--markdown-path",
         type=Path,
@@ -224,7 +258,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.subdir:
             target_dir = target_dir / args.subdir
         for spec in SPECS:
-            dot_source, dot_path, svg_path = _export_spec(spec, target_dir, dot_binary=dot_binary)
+            dot_source, dot_path, svg_path = _export_spec(
+                spec, target_dir, dot_binary=dot_binary
+            )
             rendered.append((spec, dot_source))
             print(f"wrote {dot_path}")
             if svg_path:

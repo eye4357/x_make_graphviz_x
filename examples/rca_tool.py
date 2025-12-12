@@ -44,10 +44,14 @@ def _coerce_dot_binary(dot_binary: Path | str | None) -> str | None:
     return str(Path(dot_binary))
 
 
-def _build_phase_flow(phases: list[Phase], *, dot_binary: Path | str | None = None) -> GraphvizBuilder:
+def _build_phase_flow(
+    phases: list[Phase], *, dot_binary: Path | str | None = None
+) -> GraphvizBuilder:
     builder = GraphvizBuilder(directed=True, dot_binary=_coerce_dot_binary(dot_binary))
     builder.graph_attr(rankdir="LR")
-    builder.node_defaults(shape="box", style="rounded,filled", fillcolor="#e8f4fd", fontname="Inter")
+    builder.node_defaults(
+        shape="box", style="rounded,filled", fillcolor="#e8f4fd", fontname="Inter"
+    )
 
     builder.add_node(
         "start",
@@ -82,7 +86,9 @@ def _build_phase_flow(phases: list[Phase], *, dot_binary: Path | str | None = No
     return builder
 
 
-def _build_ishikawa(effect: str, branches: list[Branch], *, dot_binary: Path | str | None = None) -> GraphvizBuilder:
+def _build_ishikawa(
+    effect: str, branches: list[Branch], *, dot_binary: Path | str | None = None
+) -> GraphvizBuilder:
     builder = GraphvizBuilder(directed=True, dot_binary=_coerce_dot_binary(dot_binary))
     builder.graph_attr(rankdir="LR", splines="ortho")
     builder.node_defaults(shape="box", style="rounded", fontname="Inter")
@@ -150,7 +156,9 @@ def _graphviz_block(name: str, dot_source: str) -> str:
     return f"```graphviz name={name} hook=diagram.graphviz\n{dot_source.strip()}\n```"
 
 
-def _make_image_ref(images_prefix: str | None, subdir: str | None, filename: str) -> str:
+def _make_image_ref(
+    images_prefix: str | None, subdir: str | None, filename: str
+) -> str:
     parts: list[str] = []
     if images_prefix:
         parts.append(images_prefix)
@@ -242,20 +250,40 @@ def _markdown(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Root Cause Analysis automation")
-    parser.add_argument("--input", type=Path, required=True, help="JSON payload describing the incident")
-    parser.add_argument("--output-dir", type=Path, required=True, help="Directory for rendered diagrams")
-    parser.add_argument("--subdir", type=str, default=None, help="Optional subdirectory under --output-dir")
+    parser.add_argument(
+        "--input", type=Path, required=True, help="JSON payload describing the incident"
+    )
+    parser.add_argument(
+        "--output-dir", type=Path, required=True, help="Directory for rendered diagrams"
+    )
+    parser.add_argument(
+        "--subdir",
+        type=str,
+        default=None,
+        help="Optional subdirectory under --output-dir",
+    )
     parser.add_argument("--slug", type=str, help="Override slug for output filenames")
-    parser.add_argument("--images-prefix", type=str, default="images", help="Relative prefix for markdown image links")
+    parser.add_argument(
+        "--images-prefix",
+        type=str,
+        default="images",
+        help="Relative prefix for markdown image links",
+    )
     parser.add_argument("--dot-binary", type=Path, help="Explicit dot executable path")
-    parser.add_argument("--emit-markdown", action="store_true", help="Print markdown summary to stdout")
+    parser.add_argument(
+        "--emit-markdown", action="store_true", help="Print markdown summary to stdout"
+    )
     parser.add_argument("--markdown-path", type=Path, help="Write markdown to file")
     args = parser.parse_args(argv)
 
     payload = _load_payload(args.input)
 
     incident = payload.get("incident", {})
-    slug = args.slug or incident.get("slug") or _slugify(incident.get("title", "root-cause"))
+    slug = (
+        args.slug
+        or incident.get("slug")
+        or _slugify(incident.get("title", "root-cause"))
+    )
 
     fishbone = payload.get("fishbone")
     if not fishbone:
@@ -275,7 +303,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         target_dir = target_dir / args.subdir
 
     phase_builder = _build_phase_flow(phases, dot_binary=dot_binary)
-    phase_dot, phase_dot_path, phase_svg_path = _export(phase_builder, target_dir / f"{slug}-phase-flow")
+    phase_dot, phase_dot_path, phase_svg_path = _export(
+        phase_builder, target_dir / f"{slug}-phase-flow"
+    )
     print(f"wrote {phase_dot_path}")
     if phase_svg_path:
         print(f"wrote {phase_svg_path}")
@@ -283,7 +313,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("dot binary missing; phase SVG not created")
 
     ish_builder = _build_ishikawa(effect, branches, dot_binary=dot_binary)
-    ish_dot, ish_dot_path, ish_svg_path = _export(ish_builder, target_dir / f"{slug}-ishikawa")
+    ish_dot, ish_dot_path, ish_svg_path = _export(
+        ish_builder, target_dir / f"{slug}-ishikawa"
+    )
     print(f"wrote {ish_dot_path}")
     if ish_svg_path:
         print(f"wrote {ish_svg_path}")

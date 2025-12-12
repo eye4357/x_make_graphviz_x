@@ -96,7 +96,9 @@ def test_markdown_includes_remediation_tracker() -> None:
     assert "| Wire gate | Ops | in-progress | 2025-12-12 | tracking |" in markdown
 
 
-def test_main_exports_artifacts_with_stub(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_main_exports_artifacts_with_stub(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(rca_tool, "GraphvizBuilder", _FakeBuilder)
 
     payload_path = tmp_path / "payload.json"
