@@ -5,12 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from x_make_graphviz_x import GraphvizBuilder
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+MISSING_FISHBONE_ERROR = "payload missing 'fishbone' section"
+MISSING_PHASE_FLOW_ERROR = "payload missing 'phase_flow' section"
 
 
 @dataclass(frozen=True)
@@ -28,6 +33,14 @@ class Phase:
     tactics: str
 
 
+@dataclass(frozen=True)
+class MarkdownArtifacts:
+    phase_dot: str
+    ishikawa_dot: str
+    images_prefix: str | None = None
+    subdir: str | None = None
+
+
 def _slugify(value: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
     return cleaned.strip("-") or "rca"
@@ -35,7 +48,7 @@ def _slugify(value: str) -> str:
 
 def _load_payload(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
-    return json.loads(text)
+    return cast("dict[str, Any]", json.loads(text))
 
 
 def _coerce_dot_binary(dot_binary: Path | str | None) -> str | None:
@@ -126,30 +139,26 @@ def _export(builder: GraphvizBuilder, basename: Path) -> tuple[str, Path, Path |
 
 
 def _as_branches(raw: Iterable[dict[str, Any]]) -> list[Branch]:
-    result: list[Branch] = []
-    for item in raw:
-        result.append(
-            Branch(
-                name=item.get("title", "Unnamed Branch"),
-                description=item.get("description", ""),
-                sub_causes=list(item.get("sub_causes", [])),
-            )
+    return [
+        Branch(
+            name=item.get("title", "Unnamed Branch"),
+            description=item.get("description", ""),
+            sub_causes=list(item.get("sub_causes", [])),
         )
-    return result
+        for item in raw
+    ]
 
 
 def _as_phases(raw: Iterable[dict[str, Any]]) -> list[Phase]:
-    result: list[Phase] = []
-    for item in raw:
-        result.append(
-            Phase(
-                title=item.get("title", "Phase"),
-                goal=item.get("goal", ""),
-                exit=item.get("exit", ""),
-                tactics=item.get("tactics", ""),
-            )
+    return [
+        Phase(
+            title=item.get("title", "Phase"),
+            goal=item.get("goal", ""),
+            exit=item.get("exit", ""),
+            tactics=item.get("tactics", ""),
         )
-    return result
+        for item in raw
+    ]
 
 
 def _graphviz_block(name: str, dot_source: str) -> str:
@@ -172,10 +181,7 @@ def _markdown(
     payload: dict[str, Any],
     slug: str,
     *,
-    phase_dot: str,
-    ishikawa_dot: str,
-    images_prefix: str | None,
-    subdir: str | None,
+    artifacts: MarkdownArtifacts,
 ) -> str:
     incident = payload.get("incident", {})
     phase_flow = payload.get("phase_flow", {})
@@ -185,8 +191,12 @@ def _markdown(
     summary = incident.get("summary", incident.get("effect", ""))
     context_items = incident.get("context", {})
 
-    phase_img = _make_image_ref(images_prefix, subdir, f"{slug}-phase-flow.svg")
-    ishikawa_img = _make_image_ref(images_prefix, subdir, f"{slug}-ishikawa.svg")
+    phase_img = _make_image_ref(
+        artifacts.images_prefix, artifacts.subdir, f"{slug}-phase-flow.svg"
+    )
+    ishikawa_img = _make_image_ref(
+        artifacts.images_prefix, artifacts.subdir, f"{slug}-ishikawa.svg"
+    )
 
     lines: list[str] = [f"# {title}", "", summary, ""]
 
@@ -199,13 +209,13 @@ def _markdown(
     lines.append("## Phase Flow (Rendered)")
     lines.append(f"![Phase Flow]({phase_img})")
     lines.append("")
-    lines.append(_graphviz_block("phase_flow", phase_dot))
+    lines.append(_graphviz_block("phase_flow", artifacts.phase_dot))
     lines.append("")
 
     lines.append("## Ishikawa Diagram (Rendered)")
     lines.append(f"![Ishikawa]({ishikawa_img})")
     lines.append("")
-    lines.append(_graphviz_block("ishikawa", ishikawa_dot))
+    lines.append(_graphviz_block("ishikawa", artifacts.ishikawa_dot))
     lines.append("")
 
     phases = phase_flow.get("phases", [])
@@ -213,10 +223,14 @@ def _markdown(
         lines.append("## Phase Detail")
         lines.append("| Phase | Exit Criteria | Primary Tactics |")
         lines.append("| --- | --- | --- |")
-        for phase in phases:
-            lines.append(
-                f"| {phase.get('title', 'Phase')} | {phase.get('exit', '')} | {phase.get('tactics', '')} |"
+        lines.extend(
+            "| {title} | {exit} | {tactics} |".format(
+                title=phase.get("title", "Phase"),
+                exit=phase.get("exit", ""),
+                tactics=phase.get("tactics", ""),
             )
+            for phase in phases
+        )
         lines.append("")
 
     if backlog:
@@ -233,16 +247,16 @@ def _markdown(
         lines.append("## Remediation Tracker")
         lines.append("| Item | Owner | Status | ETA | Notes |")
         lines.append("| --- | --- | --- | --- | --- |")
-        for action in actions:
-            lines.append(
-                "| {item} | {owner} | {status} | {eta} | {notes} |".format(
-                    item=action.get("item", ""),
-                    owner=action.get("owner", ""),
-                    status=action.get("status", ""),
-                    eta=action.get("eta", ""),
-                    notes=action.get("notes", ""),
-                )
+        lines.extend(
+            "| {item} | {owner} | {status} | {eta} | {notes} |".format(
+                item=action.get("item", ""),
+                owner=action.get("owner", ""),
+                status=action.get("status", ""),
+                eta=action.get("eta", ""),
+                notes=action.get("notes", ""),
             )
+            for action in actions
+        )
         lines.append("")
 
     return "\n".join(line.rstrip() for line in lines if line is not None)
@@ -287,10 +301,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     fishbone = payload.get("fishbone")
     if not fishbone:
-        raise SystemExit("payload missing 'fishbone' section")
+        raise SystemExit(MISSING_FISHBONE_ERROR)
     phase_flow = payload.get("phase_flow")
     if not phase_flow:
-        raise SystemExit("payload missing 'phase_flow' section")
+        raise SystemExit(MISSING_PHASE_FLOW_ERROR)
 
     branches = _as_branches(fishbone.get("branches", []))
     phases = _as_phases(phase_flow.get("phases", []))
@@ -326,10 +340,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         markdown = _markdown(
             payload,
             slug,
-            phase_dot=phase_dot,
-            ishikawa_dot=ish_dot,
-            images_prefix=args.images_prefix,
-            subdir=args.subdir,
+            artifacts=MarkdownArtifacts(
+                phase_dot=phase_dot,
+                ishikawa_dot=ish_dot,
+                images_prefix=args.images_prefix,
+                subdir=args.subdir,
+            ),
         )
         if args.emit_markdown:
             print(markdown)

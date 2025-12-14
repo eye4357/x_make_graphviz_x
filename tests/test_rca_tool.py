@@ -4,10 +4,12 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pytest
+if TYPE_CHECKING:
+    import pytest
 
 from x_make_graphviz_x.examples import rca_tool
 
@@ -15,22 +17,22 @@ from x_make_graphviz_x.examples import rca_tool
 class _FakeBuilder:
     """Minimal stub that imitates GraphvizBuilder for CLI tests."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, *_args: object, **_kwargs: object) -> None:
         self._dot_lines: list[str] = ["digraph G {", "  // fake", "}"]
 
-    def graph_attr(self, **_attrs: Any) -> _FakeBuilder:
+    def graph_attr(self, **_attrs: object) -> _FakeBuilder:
         return self
 
-    def node_defaults(self, **_attrs: Any) -> _FakeBuilder:
+    def node_defaults(self, **_attrs: object) -> _FakeBuilder:
         return self
 
-    def add_node(self, *_args: Any, **_kwargs: Any) -> _FakeBuilder:
+    def add_node(self, *_args: object, **_kwargs: object) -> _FakeBuilder:
         return self
 
-    def add_edge(self, *_args: Any, **_kwargs: Any) -> _FakeBuilder:
+    def add_edge(self, *_args: object, **_kwargs: object) -> _FakeBuilder:
         return self
 
-    def rank(self, *_args: Any, **_kwargs: Any) -> _FakeBuilder:
+    def rank(self, *_args: object, **_kwargs: object) -> _FakeBuilder:
         return self
 
     def dot_source(self) -> str:
@@ -83,13 +85,15 @@ def _sample_payload() -> dict[str, Any]:
 
 def test_markdown_includes_remediation_tracker() -> None:
     payload = _sample_payload()
-    markdown = rca_tool._markdown(
+    markdown = rca_tool._markdown(  # noqa: SLF001 - verifying helper output
         payload,
         slug="sample-rca",
-        phase_dot="digraph phase {}",
-        ishikawa_dot="digraph fishbone {}",
-        images_prefix="images",
-        subdir="demo",
+        artifacts=rca_tool.MarkdownArtifacts(
+            phase_dot="digraph phase {}",
+            ishikawa_dot="digraph fishbone {}",
+            images_prefix="images",
+            subdir="demo",
+        ),
     )
 
     assert "## Remediation Tracker" in markdown
@@ -102,7 +106,7 @@ def test_main_exports_artifacts_with_stub(
     monkeypatch.setattr(rca_tool, "GraphvizBuilder", _FakeBuilder)
 
     payload_path = tmp_path / "payload.json"
-    payload_path.write_text(rca_tool.json.dumps(_sample_payload()), encoding="utf-8")
+    payload_path.write_text(json.dumps(_sample_payload()), encoding="utf-8")
 
     output_dir = tmp_path / "out"
     markdown_path = tmp_path / "packet.md"
