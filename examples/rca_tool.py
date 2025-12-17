@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ from x_make_graphviz_x.vendor_support import find_vendored_dot_binary
 
 MISSING_FISHBONE_ERROR = "payload missing 'fishbone' section"
 MISSING_PHASE_FLOW_ERROR = "payload missing 'phase_flow' section"
+ENV_EVIDENCE_ROOT = "MAKE_GRAPHVIZ_EVIDENCE_ROOT"
+FALLBACK_RELEASE = "0.20.15"
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,59 @@ class MarkdownArtifacts:
     ishikawa_dot: str
     images_prefix: str | None = None
     subdir: str | None = None
+
+
+def _workspace_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _parse_release(name: str) -> tuple[int, ...] | None:
+    parts = name.split(".")
+    if not parts:
+        return None
+    try:
+        return tuple(int(part) for part in parts)
+    except ValueError:
+        return None
+
+
+def _latest_release_dir(base: Path) -> Path | None:
+    if not base.exists():
+        return None
+    candidates: list[tuple[tuple[int, ...], Path]] = []
+    for entry in base.iterdir():
+        if not entry.is_dir():
+            continue
+        version = _parse_release(entry.name)
+        if version is not None:
+            candidates.append((version, entry))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def _default_evidence_root() -> Path:
+    override = os.environ.get(ENV_EVIDENCE_ROOT)
+    if override:
+        return Path(override)
+    workspace_root = _workspace_root()
+    search_roots = [
+        workspace_root / "x_0_make_all_x" / "Change Control",
+        workspace_root / "Change Control",
+    ]
+    for base in search_roots:
+        release_dir = _latest_release_dir(base)
+        if release_dir is not None:
+            return release_dir / "evidence" / "graphviz_rca"
+    return (
+        workspace_root
+        / "x_0_make_all_x"
+        / "Change Control"
+        / FALLBACK_RELEASE
+        / "evidence"
+        / "graphviz_rca"
+    )
 
 
 _NON_SEQUENCE_TYPES = (str, bytes, bytearray)
@@ -327,7 +383,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--input", type=Path, required=True, help="JSON payload describing the incident"
     )
     parser.add_argument(
-        "--output-dir", type=Path, required=True, help="Directory for rendered diagrams"
+        "--output-dir",
+        type=Path,
+        help=(
+            "Directory for rendered diagrams; defaults to the latest Change Control "
+            "evidence tree if omitted"
+        ),
     )
     parser.add_argument(
         "--subdir",
@@ -346,7 +407,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--emit-markdown", action="store_true", help="Print markdown summary to stdout"
     )
-    parser.add_argument("--markdown-path", type=Path, help="Write markdown to file")
+    parser.add_argument(
+        "--markdown-path",
+        type=Path,
+        help=(
+            "Write markdown to file; defaults to the sibling evidence folder when "
+            "--output-dir is inferred"
+        ),
+    )
     args = parser.parse_args(argv)
 
     input_attr: object = args.input
@@ -355,8 +423,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:  # pragma: no cover - argparse enforces types
         parser.error("--input must be a filesystem path")
 
-    output_attr: object = args.output_dir
-    if isinstance(output_attr, Path):
+    output_attr: object = getattr(args, "output_dir", None)
+    if output_attr is None:
+        output_dir: Path | None = None
+    elif isinstance(output_attr, Path):
         output_dir = output_attr
     else:  # pragma: no cover - argparse enforces types
         parser.error("--output-dir must be a filesystem path")
@@ -419,6 +489,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         or _coerce_str(incident.get("effect"))
         or "Effect"
     )
+
+    defaulted_output_dir = False
+    if output_dir is None:
+        output_dir = _default_evidence_root() / "images"
+        defaulted_output_dir = True
+
+    defaulted_subdir = False
+    if not subdir:
+        subdir = slug
+        defaulted_subdir = True
+
+    defaulted_markdown_path = False
+    if markdown_path is None and defaulted_output_dir:
+        markdown_path = output_dir.parent / f"{slug}.md"
+        defaulted_markdown_path = True
+
+    if defaulted_output_dir:
+        print(
+            "[rca_tool] --output-dir not supplied; defaulting to"
+            f" {output_dir}. Override via --output-dir or set {ENV_EVIDENCE_ROOT}."
+        )
+    if defaulted_subdir:
+        print(
+            "[rca_tool] using slug-based sub-directory"
+            f" '{subdir}' to isolate artifacts."
+        )
+    if defaulted_markdown_path:
+        print(
+            "[rca_tool] --markdown-path not supplied; writing markdown to"
+            f" {markdown_path}."
+        )
 
     target_dir = output_dir
     if subdir:
