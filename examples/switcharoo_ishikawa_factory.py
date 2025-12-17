@@ -253,13 +253,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    rendered: list[tuple[DiagramSpec, str]] = []
-    dot_binary = args.dot_binary
+    output_dir_attr: object = getattr(args, "output_dir", None)
+    if output_dir_attr is None:
+        output_dir: Path | None = None
+    elif isinstance(output_dir_attr, Path):
+        output_dir = output_dir_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--output-dir must be a filesystem path")
 
-    if args.output_dir:
-        target_dir = args.output_dir
-        if args.subdir:
-            target_dir = target_dir / args.subdir
+    subdir_attr: object = getattr(args, "subdir", None)
+    if subdir_attr is None or isinstance(subdir_attr, str):
+        subdir: str | None = subdir_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--subdir must be text")
+
+    dot_binary_attr: object = getattr(args, "dot_binary", None)
+    if dot_binary_attr is None or isinstance(dot_binary_attr, Path):
+        dot_binary: Path | None = dot_binary_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--dot-binary must be a filesystem path")
+
+    emit_markdown_flag = bool(getattr(args, "emit_markdown", False))
+
+    markdown_path_attr: object = getattr(args, "markdown_path", None)
+    if markdown_path_attr is None or isinstance(markdown_path_attr, Path):
+        markdown_path: Path | None = markdown_path_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--markdown-path must be a filesystem path")
+
+    rendered: list[tuple[DiagramSpec, str]] = []
+
+    if output_dir is not None:
+        target_dir = output_dir
+        if subdir:
+            target_dir = target_dir / subdir
         for spec in SPECS:
             dot_source, dot_path, svg_path = _export_spec(
                 spec, target_dir, dot_binary=dot_binary
@@ -275,12 +302,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             builder = _build_diagram(spec, dot_binary=dot_binary)
             rendered.append((spec, builder.dot_source()))
 
-    if args.emit_markdown or args.markdown_path:
+    if emit_markdown_flag or markdown_path:
         blocks = _emit_markdown(rendered)
-        if args.emit_markdown:
+        if emit_markdown_flag:
             print(blocks)
-        if args.markdown_path:
-            args.markdown_path.write_text(blocks, encoding="utf-8")
+        if markdown_path:
+            markdown_path.write_text(blocks, encoding="utf-8")
 
     return 0
 

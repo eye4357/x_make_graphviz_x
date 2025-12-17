@@ -5,14 +5,12 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
 
 from x_make_graphviz_x import GraphvizBuilder
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+from x_make_graphviz_x.vendor_support import find_vendored_dot_binary
 
 MISSING_FISHBONE_ERROR = "payload missing 'fishbone' section"
 MISSING_PHASE_FLOW_ERROR = "payload missing 'phase_flow' section"
@@ -41,19 +39,75 @@ class MarkdownArtifacts:
     subdir: str | None = None
 
 
+_NON_SEQUENCE_TYPES = (str, bytes, bytearray)
+
+
+def _coerce_mapping(value: object | None) -> dict[str, object]:
+    if isinstance(value, Mapping):
+        result: dict[str, object] = {}
+        for key, entry in value.items():
+            if isinstance(key, str):
+                result[key] = entry
+            else:
+                result[str(key)] = entry
+        return result
+    return {}
+
+
+def _coerce_mapping_list(value: object | None) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    if isinstance(value, Sequence) and not isinstance(value, _NON_SEQUENCE_TYPES):
+        for item in value:
+            mapping = _coerce_mapping(item)
+            if mapping:
+                entries.append(mapping)
+    return entries
+
+
+def _coerce_str(value: object | None, default: str = "") -> str:
+    if isinstance(value, str):
+        return value
+    return default
+
+
+def _coerce_optional_str(value: object | None) -> str | None:
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _coerce_str_list(value: object | None) -> list[str]:
+    if isinstance(value, Sequence) and not isinstance(value, _NON_SEQUENCE_TYPES):
+        return [item if isinstance(item, str) else str(item) for item in value]
+    return []
+
+
 def _slugify(value: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
     return cleaned.strip("-") or "rca"
 
 
-def _load_payload(path: Path) -> dict[str, Any]:
+def _load_payload(path: Path) -> dict[str, object]:
     text = path.read_text(encoding="utf-8")
-    return cast("dict[str, Any]", json.loads(text))
+    data = json.loads(text)
+    if isinstance(data, Mapping):
+        result: dict[str, object] = {}
+        for key, entry in data.items():
+            if isinstance(key, str):
+                result[key] = entry
+            else:
+                result[str(key)] = entry
+        return result
+    message = "RCA payload must be a JSON object"
+    raise ValueError(message)
 
 
 def _coerce_dot_binary(dot_binary: Path | str | None) -> str | None:
     if dot_binary is None:
-        return None
+        vendored = find_vendored_dot_binary()
+        if vendored is None:
+            return None
+        return str(vendored)
     return str(Path(dot_binary))
 
 
@@ -138,27 +192,31 @@ def _export(builder: GraphvizBuilder, basename: Path) -> tuple[str, Path, Path |
     return dot_source, dot_path, svg_path
 
 
-def _as_branches(raw: Iterable[dict[str, Any]]) -> list[Branch]:
-    return [
-        Branch(
-            name=item.get("title", "Unnamed Branch"),
-            description=item.get("description", ""),
-            sub_causes=list(item.get("sub_causes", [])),
+def _as_branches(raw: Iterable[Mapping[str, object]]) -> list[Branch]:
+    branches: list[Branch] = []
+    for item in raw:
+        branches.append(
+            Branch(
+                name=_coerce_str(item.get("title"), "Unnamed Branch"),
+                description=_coerce_str(item.get("description")),
+                sub_causes=_coerce_str_list(item.get("sub_causes")),
+            )
         )
-        for item in raw
-    ]
+    return branches
 
 
-def _as_phases(raw: Iterable[dict[str, Any]]) -> list[Phase]:
-    return [
-        Phase(
-            title=item.get("title", "Phase"),
-            goal=item.get("goal", ""),
-            exit=item.get("exit", ""),
-            tactics=item.get("tactics", ""),
+def _as_phases(raw: Iterable[Mapping[str, object]]) -> list[Phase]:
+    phases: list[Phase] = []
+    for item in raw:
+        phases.append(
+            Phase(
+                title=_coerce_str(item.get("title"), "Phase"),
+                goal=_coerce_str(item.get("goal")),
+                exit=_coerce_str(item.get("exit")),
+                tactics=_coerce_str(item.get("tactics")),
+            )
         )
-        for item in raw
-    ]
+    return phases
 
 
 def _graphviz_block(name: str, dot_source: str) -> str:
@@ -178,18 +236,18 @@ def _make_image_ref(
 
 
 def _markdown(
-    payload: dict[str, Any],
+    payload: Mapping[str, object],
     slug: str,
     *,
     artifacts: MarkdownArtifacts,
 ) -> str:
-    incident = payload.get("incident", {})
-    phase_flow = payload.get("phase_flow", {})
-    backlog = payload.get("backlog", [])
-    actions = payload.get("actions", [])
-    title = incident.get("title", "Root Cause Analysis")
-    summary = incident.get("summary", incident.get("effect", ""))
-    context_items = incident.get("context", {})
+    incident = _coerce_mapping(payload.get("incident"))
+    phase_flow = _coerce_mapping(payload.get("phase_flow"))
+    backlog_items = _coerce_mapping_list(payload.get("backlog"))
+    action_items = _coerce_mapping_list(payload.get("actions"))
+    title = _coerce_str(incident.get("title"), "Root Cause Analysis")
+    summary = _coerce_str(incident.get("summary"), _coerce_str(incident.get("effect")))
+    context_items = _coerce_mapping(incident.get("context"))
 
     phase_img = _make_image_ref(
         artifacts.images_prefix, artifacts.subdir, f"{slug}-phase-flow.svg"
@@ -203,7 +261,8 @@ def _markdown(
     if context_items:
         lines.append("## Operational Context")
         for key, value in context_items.items():
-            lines.append(f"- **{key}**: {value}")
+            value_str = _coerce_str(value)
+            lines.append(f"- **{key}**: {value_str}")
         lines.append("")
 
     lines.append("## Phase Flow (Rendered)")
@@ -218,45 +277,45 @@ def _markdown(
     lines.append(_graphviz_block("ishikawa", artifacts.ishikawa_dot))
     lines.append("")
 
-    phases = phase_flow.get("phases", [])
-    if phases:
+    phases_section = _coerce_mapping_list(phase_flow.get("phases"))
+    if phases_section:
         lines.append("## Phase Detail")
         lines.append("| Phase | Exit Criteria | Primary Tactics |")
         lines.append("| --- | --- | --- |")
-        lines.extend(
-            "| {title} | {exit} | {tactics} |".format(
-                title=phase.get("title", "Phase"),
-                exit=phase.get("exit", ""),
-                tactics=phase.get("tactics", ""),
+        for phase in phases_section:
+            lines.append(
+                "| {title} | {exit} | {tactics} |".format(
+                    title=_coerce_str(phase.get("title"), "Phase"),
+                    exit=_coerce_str(phase.get("exit")),
+                    tactics=_coerce_str(phase.get("tactics")),
+                )
             )
-            for phase in phases
-        )
         lines.append("")
 
-    if backlog:
+    if backlog_items:
         lines.append("## Immediate Backlog")
-        for item in backlog:
-            owner = item.get("owner", "")
-            status = item.get("status", "")
+        for item in backlog_items:
+            owner = _coerce_str(item.get("owner"))
+            status = _coerce_str(item.get("status"))
             prefix = f"[{status}] " if status else ""
             suffix = f" — {owner}" if owner else ""
-            lines.append(f"- {prefix}{item.get('item', '')}{suffix}")
+            lines.append(f"- {prefix}{_coerce_str(item.get('item'))}{suffix}")
         lines.append("")
 
-    if actions:
+    if action_items:
         lines.append("## Remediation Tracker")
         lines.append("| Item | Owner | Status | ETA | Notes |")
         lines.append("| --- | --- | --- | --- | --- |")
-        lines.extend(
-            "| {item} | {owner} | {status} | {eta} | {notes} |".format(
-                item=action.get("item", ""),
-                owner=action.get("owner", ""),
-                status=action.get("status", ""),
-                eta=action.get("eta", ""),
-                notes=action.get("notes", ""),
+        for action in action_items:
+            lines.append(
+                "| {item} | {owner} | {status} | {eta} | {notes} |".format(
+                    item=_coerce_str(action.get("item")),
+                    owner=_coerce_str(action.get("owner")),
+                    status=_coerce_str(action.get("status")),
+                    eta=_coerce_str(action.get("eta")),
+                    notes=_coerce_str(action.get("notes")),
+                )
             )
-            for action in actions
-        )
         lines.append("")
 
     return "\n".join(line.rstrip() for line in lines if line is not None)
@@ -290,31 +349,80 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--markdown-path", type=Path, help="Write markdown to file")
     args = parser.parse_args(argv)
 
-    payload = _load_payload(args.input)
+    input_attr: object = args.input
+    if isinstance(input_attr, Path):
+        input_path = input_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--input must be a filesystem path")
 
-    incident = payload.get("incident", {})
+    output_attr: object = args.output_dir
+    if isinstance(output_attr, Path):
+        output_dir = output_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--output-dir must be a filesystem path")
+
+    subdir_attr: object = getattr(args, "subdir", None)
+    if subdir_attr is None or isinstance(subdir_attr, str):
+        subdir: str | None = subdir_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--subdir must be text")
+
+    slug_attr: object = getattr(args, "slug", None)
+    if slug_attr is None or isinstance(slug_attr, str):
+        slug_override: str | None = slug_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--slug must be text")
+
+    images_prefix_attr: object = getattr(args, "images_prefix", "images")
+    if isinstance(images_prefix_attr, str):
+        images_prefix = images_prefix_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--images-prefix must be text")
+
+    dot_binary_attr: object = getattr(args, "dot_binary", None)
+    if dot_binary_attr is None or isinstance(dot_binary_attr, Path):
+        dot_binary: Path | None = dot_binary_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--dot-binary must be a filesystem path")
+
+    emit_markdown_flag = bool(getattr(args, "emit_markdown", False))
+
+    markdown_path_attr: object = getattr(args, "markdown_path", None)
+    if markdown_path_attr is None or isinstance(markdown_path_attr, Path):
+        markdown_path: Path | None = markdown_path_attr
+    else:  # pragma: no cover - argparse enforces types
+        parser.error("--markdown-path must be a filesystem path")
+
+    try:
+        payload = _load_payload(input_path)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    incident = _coerce_mapping(payload.get("incident"))
     slug = (
-        args.slug
-        or incident.get("slug")
-        or _slugify(incident.get("title", "root-cause"))
+        slug_override
+        or _coerce_str(incident.get("slug"))
+        or _slugify(_coerce_str(incident.get("title"), "root-cause"))
     )
 
-    fishbone = payload.get("fishbone")
+    fishbone = _coerce_mapping(payload.get("fishbone"))
     if not fishbone:
         raise SystemExit(MISSING_FISHBONE_ERROR)
-    phase_flow = payload.get("phase_flow")
+    phase_flow = _coerce_mapping(payload.get("phase_flow"))
     if not phase_flow:
         raise SystemExit(MISSING_PHASE_FLOW_ERROR)
 
-    branches = _as_branches(fishbone.get("branches", []))
-    phases = _as_phases(phase_flow.get("phases", []))
-    effect = fishbone.get("effect") or incident.get("effect") or "Effect"
+    branches = _as_branches(_coerce_mapping_list(fishbone.get("branches")))
+    phases = _as_phases(_coerce_mapping_list(phase_flow.get("phases")))
+    effect = (
+        _coerce_str(fishbone.get("effect"))
+        or _coerce_str(incident.get("effect"))
+        or "Effect"
+    )
 
-    dot_binary = args.dot_binary
-
-    target_dir = args.output_dir
-    if args.subdir:
-        target_dir = target_dir / args.subdir
+    target_dir = output_dir
+    if subdir:
+        target_dir = target_dir / subdir
 
     phase_builder = _build_phase_flow(phases, dot_binary=dot_binary)
     phase_dot, phase_dot_path, phase_svg_path = _export(
@@ -336,21 +444,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print("dot binary missing; ishikawa SVG not created")
 
-    if args.emit_markdown or args.markdown_path:
+    if emit_markdown_flag or markdown_path:
         markdown = _markdown(
             payload,
             slug,
             artifacts=MarkdownArtifacts(
                 phase_dot=phase_dot,
                 ishikawa_dot=ish_dot,
-                images_prefix=args.images_prefix,
-                subdir=args.subdir,
+                images_prefix=images_prefix,
+                subdir=subdir,
             ),
         )
-        if args.emit_markdown:
+        if emit_markdown_flag:
             print(markdown)
-        if args.markdown_path:
-            args.markdown_path.write_text(markdown, encoding="utf-8")
+        if markdown_path:
+            markdown_path.write_text(markdown, encoding="utf-8")
 
     return 0
 
