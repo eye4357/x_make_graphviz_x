@@ -226,12 +226,21 @@ def _ishikawa_spec() -> DiagramSpec:
 SPECS: tuple[DiagramSpec, ...] = (_phase_flow_spec(), _ishikawa_spec())
 
 
+@dataclass(frozen=True)
+class FactoryOptions:
+    output_dir: Path | None
+    subdir: str | None
+    dot_binary: Path | None
+    emit_markdown: bool
+    markdown_path: Path | None
+
+
 def _emit_markdown(specs: Iterable[tuple[DiagramSpec, str]]) -> str:
     blocks = [_markdown_block(spec.name, dot_source) for spec, dot_source in specs]
     return "\n\n".join(blocks)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Switcharoo Ishikawa diagram factory")
     parser.add_argument(
         "--output-dir", type=Path, help="Directory for .dot/.svg artifacts"
@@ -251,45 +260,42 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         help="Write fenced graphviz blocks to a file",
     )
+    return parser
+
+
+def _parse_options(
+    argv: Sequence[str] | None,
+) -> tuple[argparse.ArgumentParser, FactoryOptions]:
+    parser = _build_parser()
     args = parser.parse_args(argv)
+    options = FactoryOptions(
+        output_dir=args.output_dir,
+        subdir=args.subdir,
+        dot_binary=args.dot_binary,
+        emit_markdown=bool(args.emit_markdown),
+        markdown_path=args.markdown_path,
+    )
+    return parser, options
 
-    output_dir_attr: object = getattr(args, "output_dir", None)
-    if output_dir_attr is None:
-        output_dir: Path | None = None
-    elif isinstance(output_dir_attr, Path):
-        output_dir = output_dir_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--output-dir must be a filesystem path")
 
-    subdir_attr: object = getattr(args, "subdir", None)
-    if subdir_attr is None or isinstance(subdir_attr, str):
-        subdir: str | None = subdir_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--subdir must be text")
+def _target_directory(options: FactoryOptions) -> Path | None:
+    if options.output_dir is None:
+        return None
+    if options.subdir:
+        return options.output_dir / options.subdir
+    return options.output_dir
 
-    dot_binary_attr: object = getattr(args, "dot_binary", None)
-    if dot_binary_attr is None or isinstance(dot_binary_attr, Path):
-        dot_binary: Path | None = dot_binary_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--dot-binary must be a filesystem path")
 
-    emit_markdown_flag = bool(getattr(args, "emit_markdown", False))
-
-    markdown_path_attr: object = getattr(args, "markdown_path", None)
-    if markdown_path_attr is None or isinstance(markdown_path_attr, Path):
-        markdown_path: Path | None = markdown_path_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--markdown-path must be a filesystem path")
+def main(argv: Sequence[str] | None = None) -> int:
+    _parser, options = _parse_options(argv)
 
     rendered: list[tuple[DiagramSpec, str]] = []
+    target_dir = _target_directory(options)
 
-    if output_dir is not None:
-        target_dir = output_dir
-        if subdir:
-            target_dir = target_dir / subdir
+    if target_dir is not None:
         for spec in SPECS:
             dot_source, dot_path, svg_path = _export_spec(
-                spec, target_dir, dot_binary=dot_binary
+                spec, target_dir, dot_binary=options.dot_binary
             )
             rendered.append((spec, dot_source))
             print(f"wrote {dot_path}")
@@ -299,15 +305,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print("dot binary missing; SVG not created")
     else:
         for spec in SPECS:
-            builder = _build_diagram(spec, dot_binary=dot_binary)
+            builder = _build_diagram(spec, dot_binary=options.dot_binary)
             rendered.append((spec, builder.dot_source()))
 
-    if emit_markdown_flag or markdown_path:
+    if options.emit_markdown or options.markdown_path:
         blocks = _emit_markdown(rendered)
-        if emit_markdown_flag:
+        if options.emit_markdown:
             print(blocks)
-        if markdown_path:
-            markdown_path.write_text(blocks, encoding="utf-8")
+        if options.markdown_path:
+            options.markdown_path.write_text(blocks, encoding="utf-8")
 
     return 0
 

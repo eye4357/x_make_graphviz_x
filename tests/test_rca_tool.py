@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import pytest
@@ -44,7 +44,7 @@ class _FakeBuilder:
         return str(svg_path)
 
 
-def _sample_payload() -> dict[str, Any]:
+def _sample_payload() -> dict[str, object]:
     return {
         "incident": {
             "title": "Sample RCA",

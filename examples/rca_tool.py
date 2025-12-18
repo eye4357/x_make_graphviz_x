@@ -42,6 +42,34 @@ class MarkdownArtifacts:
     subdir: str | None = None
 
 
+@dataclass(frozen=True)
+class CLIOptions:
+    input_path: Path
+    output_dir: Path | None
+    subdir: str | None
+    slug_override: str | None
+    images_prefix: str
+    dot_binary: Path | None
+    emit_markdown: bool
+    markdown_path: Path | None
+
+
+@dataclass(frozen=True)
+class RenderPlan:
+    output_dir: Path
+    subdir: str | None
+    markdown_path: Path | None
+    defaulted_output_dir: bool
+    defaulted_subdir: bool
+    defaulted_markdown_path: bool
+
+    @property
+    def artifact_root(self) -> Path:
+        if self.subdir:
+            return self.output_dir / self.subdir
+        return self.output_dir
+
+
 def _workspace_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -249,30 +277,26 @@ def _export(builder: GraphvizBuilder, basename: Path) -> tuple[str, Path, Path |
 
 
 def _as_branches(raw: Iterable[Mapping[str, object]]) -> list[Branch]:
-    branches: list[Branch] = []
-    for item in raw:
-        branches.append(
-            Branch(
-                name=_coerce_str(item.get("title"), "Unnamed Branch"),
-                description=_coerce_str(item.get("description")),
-                sub_causes=_coerce_str_list(item.get("sub_causes")),
-            )
+    return [
+        Branch(
+            name=_coerce_str(item.get("title"), "Unnamed Branch"),
+            description=_coerce_str(item.get("description")),
+            sub_causes=_coerce_str_list(item.get("sub_causes")),
         )
-    return branches
+        for item in raw
+    ]
 
 
 def _as_phases(raw: Iterable[Mapping[str, object]]) -> list[Phase]:
-    phases: list[Phase] = []
-    for item in raw:
-        phases.append(
-            Phase(
-                title=_coerce_str(item.get("title"), "Phase"),
-                goal=_coerce_str(item.get("goal")),
-                exit=_coerce_str(item.get("exit")),
-                tactics=_coerce_str(item.get("tactics")),
-            )
+    return [
+        Phase(
+            title=_coerce_str(item.get("title"), "Phase"),
+            goal=_coerce_str(item.get("goal")),
+            exit=_coerce_str(item.get("exit")),
+            tactics=_coerce_str(item.get("tactics")),
         )
-    return phases
+        for item in raw
+    ]
 
 
 def _graphviz_block(name: str, dot_source: str) -> str:
@@ -338,14 +362,14 @@ def _markdown(
         lines.append("## Phase Detail")
         lines.append("| Phase | Exit Criteria | Primary Tactics |")
         lines.append("| --- | --- | --- |")
-        for phase in phases_section:
-            lines.append(
-                "| {title} | {exit} | {tactics} |".format(
-                    title=_coerce_str(phase.get("title"), "Phase"),
-                    exit=_coerce_str(phase.get("exit")),
-                    tactics=_coerce_str(phase.get("tactics")),
-                )
+        lines.extend(
+            "| {title} | {exit} | {tactics} |".format(
+                title=_coerce_str(phase.get("title"), "Phase"),
+                exit=_coerce_str(phase.get("exit")),
+                tactics=_coerce_str(phase.get("tactics")),
             )
+            for phase in phases_section
+        )
         lines.append("")
 
     if backlog_items:
@@ -362,25 +386,28 @@ def _markdown(
         lines.append("## Remediation Tracker")
         lines.append("| Item | Owner | Status | ETA | Notes |")
         lines.append("| --- | --- | --- | --- | --- |")
-        for action in action_items:
-            lines.append(
-                "| {item} | {owner} | {status} | {eta} | {notes} |".format(
-                    item=_coerce_str(action.get("item")),
-                    owner=_coerce_str(action.get("owner")),
-                    status=_coerce_str(action.get("status")),
-                    eta=_coerce_str(action.get("eta")),
-                    notes=_coerce_str(action.get("notes")),
-                )
+        lines.extend(
+            "| {item} | {owner} | {status} | {eta} | {notes} |".format(
+                item=_coerce_str(action.get("item")),
+                owner=_coerce_str(action.get("owner")),
+                status=_coerce_str(action.get("status")),
+                eta=_coerce_str(action.get("eta")),
+                notes=_coerce_str(action.get("notes")),
             )
+            for action in action_items
+        )
         lines.append("")
 
     return "\n".join(line.rstrip() for line in lines if line is not None)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Root Cause Analysis automation")
     parser.add_argument(
-        "--input", type=Path, required=True, help="JSON payload describing the incident"
+        "--input",
+        type=Path,
+        required=True,
+        help="JSON payload describing the incident",
     )
     parser.add_argument(
         "--output-dir",
@@ -405,7 +432,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--dot-binary", type=Path, help="Explicit dot executable path")
     parser.add_argument(
-        "--emit-markdown", action="store_true", help="Print markdown summary to stdout"
+        "--emit-markdown",
+        action="store_true",
+        help="Print markdown summary to stdout",
     )
     parser.add_argument(
         "--markdown-path",
@@ -415,62 +444,79 @@ def main(argv: Sequence[str] | None = None) -> int:
             "--output-dir is inferred"
         ),
     )
+    return parser
+
+
+def _parse_cli_options(
+    argv: Sequence[str] | None,
+) -> tuple[argparse.ArgumentParser, CLIOptions]:
+    parser = _build_parser()
     args = parser.parse_args(argv)
+    options = CLIOptions(
+        input_path=args.input,
+        output_dir=args.output_dir,
+        subdir=args.subdir,
+        slug_override=args.slug,
+        images_prefix=args.images_prefix,
+        dot_binary=args.dot_binary,
+        emit_markdown=bool(args.emit_markdown),
+        markdown_path=args.markdown_path,
+    )
+    return parser, options
 
-    input_attr: object = args.input
-    if isinstance(input_attr, Path):
-        input_path = input_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--input must be a filesystem path")
 
-    output_attr: object = getattr(args, "output_dir", None)
-    if output_attr is None:
-        output_dir: Path | None = None
-    elif isinstance(output_attr, Path):
-        output_dir = output_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--output-dir must be a filesystem path")
+def _resolve_render_plan(slug: str, options: CLIOptions) -> RenderPlan:
+    target_dir = options.output_dir or (_default_evidence_root() / "images")
+    defaulted_output_dir = options.output_dir is None
 
-    subdir_attr: object = getattr(args, "subdir", None)
-    if subdir_attr is None or isinstance(subdir_attr, str):
-        subdir: str | None = subdir_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--subdir must be text")
+    resolved_subdir = options.subdir or slug
+    defaulted_subdir = not options.subdir
 
-    slug_attr: object = getattr(args, "slug", None)
-    if slug_attr is None or isinstance(slug_attr, str):
-        slug_override: str | None = slug_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--slug must be text")
+    markdown_path = options.markdown_path
+    defaulted_markdown_path = False
+    if markdown_path is None and defaulted_output_dir:
+        markdown_path = target_dir.parent / f"{slug}.md"
+        defaulted_markdown_path = True
 
-    images_prefix_attr: object = getattr(args, "images_prefix", "images")
-    if isinstance(images_prefix_attr, str):
-        images_prefix = images_prefix_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--images-prefix must be text")
+    return RenderPlan(
+        output_dir=target_dir,
+        subdir=resolved_subdir,
+        markdown_path=markdown_path,
+        defaulted_output_dir=defaulted_output_dir,
+        defaulted_subdir=defaulted_subdir,
+        defaulted_markdown_path=defaulted_markdown_path,
+    )
 
-    dot_binary_attr: object = getattr(args, "dot_binary", None)
-    if dot_binary_attr is None or isinstance(dot_binary_attr, Path):
-        dot_binary: Path | None = dot_binary_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--dot-binary must be a filesystem path")
 
-    emit_markdown_flag = bool(getattr(args, "emit_markdown", False))
+def _log_plan_defaults(plan: RenderPlan) -> None:
+    if plan.defaulted_output_dir:
+        print(
+            "[rca_tool] --output-dir not supplied; defaulting to"
+            f" {plan.output_dir}. Override via --output-dir or set {ENV_EVIDENCE_ROOT}.",
+        )
+    if plan.defaulted_subdir:
+        print(
+            "[rca_tool] using slug-based sub-directory"
+            f" '{plan.subdir}' to isolate artifacts.",
+        )
+    if plan.defaulted_markdown_path and plan.markdown_path:
+        print(
+            "[rca_tool] --markdown-path not supplied; writing markdown to"
+            f" {plan.markdown_path}.",
+        )
 
-    markdown_path_attr: object = getattr(args, "markdown_path", None)
-    if markdown_path_attr is None or isinstance(markdown_path_attr, Path):
-        markdown_path: Path | None = markdown_path_attr
-    else:  # pragma: no cover - argparse enforces types
-        parser.error("--markdown-path must be a filesystem path")
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser, options = _parse_cli_options(argv)
 
     try:
-        payload = _load_payload(input_path)
+        payload = _load_payload(options.input_path)
     except ValueError as exc:
         parser.error(str(exc))
 
     incident = _coerce_mapping(payload.get("incident"))
     slug = (
-        slug_override
+        options.slug_override
         or _coerce_str(incident.get("slug"))
         or _slugify(_coerce_str(incident.get("title"), "root-cause"))
     )
@@ -490,44 +536,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         or "Effect"
     )
 
-    defaulted_output_dir = False
-    if output_dir is None:
-        output_dir = _default_evidence_root() / "images"
-        defaulted_output_dir = True
+    plan = _resolve_render_plan(slug, options)
+    _log_plan_defaults(plan)
 
-    defaulted_subdir = False
-    if not subdir:
-        subdir = slug
-        defaulted_subdir = True
-
-    defaulted_markdown_path = False
-    if markdown_path is None and defaulted_output_dir:
-        markdown_path = output_dir.parent / f"{slug}.md"
-        defaulted_markdown_path = True
-
-    if defaulted_output_dir:
-        print(
-            "[rca_tool] --output-dir not supplied; defaulting to"
-            f" {output_dir}. Override via --output-dir or set {ENV_EVIDENCE_ROOT}."
-        )
-    if defaulted_subdir:
-        print(
-            "[rca_tool] using slug-based sub-directory"
-            f" '{subdir}' to isolate artifacts."
-        )
-    if defaulted_markdown_path:
-        print(
-            "[rca_tool] --markdown-path not supplied; writing markdown to"
-            f" {markdown_path}."
-        )
-
-    target_dir = output_dir
-    if subdir:
-        target_dir = target_dir / subdir
-
-    phase_builder = _build_phase_flow(phases, dot_binary=dot_binary)
+    phase_builder = _build_phase_flow(phases, dot_binary=options.dot_binary)
     phase_dot, phase_dot_path, phase_svg_path = _export(
-        phase_builder, target_dir / f"{slug}-phase-flow"
+        phase_builder, plan.artifact_root / f"{slug}-phase-flow"
     )
     print(f"wrote {phase_dot_path}")
     if phase_svg_path:
@@ -535,9 +549,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print("dot binary missing; phase SVG not created")
 
-    ish_builder = _build_ishikawa(effect, branches, dot_binary=dot_binary)
+    ish_builder = _build_ishikawa(effect, branches, dot_binary=options.dot_binary)
     ish_dot, ish_dot_path, ish_svg_path = _export(
-        ish_builder, target_dir / f"{slug}-ishikawa"
+        ish_builder, plan.artifact_root / f"{slug}-ishikawa"
     )
     print(f"wrote {ish_dot_path}")
     if ish_svg_path:
@@ -545,21 +559,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print("dot binary missing; ishikawa SVG not created")
 
-    if emit_markdown_flag or markdown_path:
+    if options.emit_markdown or plan.markdown_path:
         markdown = _markdown(
             payload,
             slug,
             artifacts=MarkdownArtifacts(
                 phase_dot=phase_dot,
                 ishikawa_dot=ish_dot,
-                images_prefix=images_prefix,
-                subdir=subdir,
+                images_prefix=options.images_prefix,
+                subdir=plan.subdir,
             ),
         )
-        if emit_markdown_flag:
+        if options.emit_markdown:
             print(markdown)
-        if markdown_path:
-            markdown_path.write_text(markdown, encoding="utf-8")
+        if plan.markdown_path:
+            plan.markdown_path.write_text(markdown, encoding="utf-8")
 
     return 0
 

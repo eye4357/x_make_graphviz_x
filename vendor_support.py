@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Iterable
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 
@@ -42,7 +42,7 @@ def _normalize_candidates(candidates: Iterable[Path]) -> tuple[Path, ...]:
     return tuple(sorted(normalized))
 
 
-@lru_cache(maxsize=1)
+@cache
 def vendored_dot_binaries() -> tuple[Path, ...]:
     """Return every vendored Graphviz `dot` binary bundled with this package."""
 
